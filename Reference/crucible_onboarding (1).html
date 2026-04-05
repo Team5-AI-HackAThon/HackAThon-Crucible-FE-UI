@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Crucible — Onboarding + App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#080808; --ink2:#111; --ink3:#1a1a1a; --ink4:#242424;
+  --paper:#f4f1ea; --cream:#ede9df;
+  --ember:#e5431a; --ember2:rgba(229,67,26,.12); --ember3:rgba(229,67,26,.06);
+  --gold:#c8a44a; --gold2:rgba(200,164,74,.1);
+  --sage:#5a8a6a; --sage2:rgba(90,138,106,.12);
+  --sky:#1a6fa8; --sky2:rgba(26,111,168,.12);
+  --muted:#666; --muted2:#444;
+  --border:#222; --border2:#2e2e2e; --card:#0e0e0e;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-family:'Syne',sans-serif;}
+
+/* ── SHELL ── */
+.shell{width:100%;max-width:393px;height:100dvh;min-height:100dvh;max-height:100dvh;margin:0 auto;background:var(--ink);display:flex;flex-direction:column;position:relative;overflow:hidden;}
+
+/* ── STATUS BAR ── */
+.sb{height:46px;min-height:46px;background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 20px;padding-top:env(safe-area-inset-top,0);flex-shrink:0;z-index:200;}
+.sb-time{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:var(--paper);letter-spacing:.03em;}
+.sb-icons{display:flex;gap:5px;font-size:13px;}
+
+/* ── SCREENS ── */
+.screen{flex:1 1 0%;min-height:0;overflow:hidden;display:none;flex-direction:column;position:relative;}
+.screen.active{display:flex;}
+
+/* ── BOTTOM NAV ── */
+.bnav{flex-shrink:0;background:rgba(8,8,8,.97);border-top:1px solid var(--border);display:flex;align-items:stretch;padding-bottom:max(10px,env(safe-area-inset-bottom,16px));z-index:300;}
+.ni{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 1px 4px;gap:2px;cursor:pointer;position:relative;transition:all .15s;-webkit-user-select:none;user-select:none;}
+.ni-icon{font-size:18px;transition:transform .2s;line-height:1;flex-shrink:0;}
+.ni-label{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 1px;}
+.ni.active .ni-icon{transform:scale(1.12);}
+.ni.active .ni-label{color:var(--ember);}
+.ni-badge{position:absolute;top:7px;right:calc(50% - 16px);width:7px;height:7px;border-radius:50%;background:var(--ember);border:1.5px solid var(--ink);display:none;}
+.ni-badge.on{display:block;}
+
+/* ── SCROLL AREA ── */
+.sa{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:12px;}
+.sa::-webkit-scrollbar{display:none;}
+
+/* ── SHARED HEADER ── */
+.hdr{background:var(--ink);padding:13px 20px 11px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;}
+.logo{font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--paper);letter-spacing:.02em;font-style:italic;}
+.logo span{color:var(--ember);font-style:normal;}
+.role-badge{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);background:var(--ember2);padding:4px 10px;border-radius:2px;border:1px solid rgba(229,67,26,.2);}
+.hdr-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--ember));display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:white;cursor:pointer;flex-shrink:0;}
+.chip-row{display:flex;gap:6px;padding:11px 18px;overflow-x:auto;flex-shrink:0;}
+.chip-row::-webkit-scrollbar{display:none;}
+.chip{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.09em;text-transform:uppercase;padding:6px 13px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--muted);white-space:nowrap;cursor:pointer;transition:all .15s;}
+.chip.active{background:var(--ember);border-color:var(--ember);color:white;}
+.sec{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);padding:14px 20px 7px;}
+
+/* ══════════════════════════════════════════
+   ONBOARDING SYSTEM
+══════════════════════════════════════════ */
+
+/* ── Role Selection ── */
+#s-onboard{background:var(--ink);justify-content:center;}
+.ob-wrap{padding:0 28px;display:flex;flex-direction:column;align-items:center;width:100%;max-width:360px;margin:0 auto;}
+.ob-flame{font-size:44px;margin-bottom:18px;}
+.ob-logo{font-family:'Cormorant Garamond',serif;font-size:42px;font-style:italic;color:var(--paper);line-height:1;margin-bottom:6px;}
+.ob-logo span{color:var(--ember);font-style:normal;}
+.ob-sub{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:36px;}
+.ob-q{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);margin-bottom:13px;text-align:center;}
+.ob-roles{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-bottom:26px;}
+.ob-role{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;}
+.ob-role.sel{border-color:var(--ember);background:var(--ember2);}
+.ob-role-icon{font-size:26px;margin-bottom:9px;}
+.ob-role-name{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--paper);margin-bottom:4px;}
+.ob-role-desc{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.05em;line-height:1.55;text-transform:uppercase;}
+.ob-cta{width:100%;padding:16px;background:var(--ember);border:none;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:white;cursor:pointer;transition:opacity .15s;margin-bottom:14px;}
+.ob-cta:active{opacity:.82;}
+.ob-signin{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;letter-spacing:.04em;}
+.ob-signin a{color:var(--ember);text-decoration:none;}
+
+/* ── Onboarding Step Shell ── */
+#s-ob-founder, #s-ob-investor{background:var(--ink);}
+.ob-step-hdr{padding:16px 22px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ob-step-logo{font-family:'Cormorant Garamond',serif;font-size:20px;font-style:italic;color:var(--paper);}
+.ob-step-logo span{color:var(--ember);font-style:normal;}
+.ob-skip{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;}
+
+/* Progress bar */
+.ob-progress{padding:14px 22px 0;flex-shrink:0;}
+.ob-prog-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.ob-prog-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);}
+.ob-prog-step{font-family:'DM Mono',monospace;font-size:9px;color:var(--ember);}
+.ob-prog-track{width:100%;height:3px;background:var(--ink3);border-radius:3px;overflow:hidden;}
+.ob-prog-fill{height:100%;background:var(--ember);border-radius:3px;transition:width .4s ease;}
+
+/* Step panels */
+.ob-steps-wrap{position:relative;flex:1 1 0%;min-height:0;overflow:hidden;}
+.ob-step{
+  position:absolute;inset:0;
+  overflow-y:auto;padding:20px 22px 24px;
+  display:flex;flex-direction:column;gap:18px;
+  transition:transform .35s cubic-bezier(.4,0,.2,1), opacity .35s ease;
+  -webkit-overflow-scrolling:touch;
+}
+.ob-step::-webkit-scrollbar{display:none;}
+.ob-step.hidden-right{transform:translateX(100%);opacity:0;pointer-events:none;}
+.ob-step.hidden-left{transform:translateX(-100%);opacity:0;pointer-events:none;}
+.ob-step.visible{transform:translateX(0);opacity:1;}
+
+/* Step title */
+.step-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-style:italic;color:var(--paper);line-height:1.2;margin-bottom:2px;}
+.step-title span{color:var(--ember);font-style:normal;}
+.step-sub{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);line-height:1.6;}
+
+/* Form field */
+.ob-field{display:flex;flex-direction:column;gap:6px;}
+.ob-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted2);}
+.ob-input{
+  background:var(--ink3);border:1px solid var(--border2);border-radius:6px;
+  padding:13px 14px;font-family:'Syne',sans-serif;font-size:14px;color:var(--paper);
+  outline:none;width:100%;transition:border-color .15s;
+  -webkit-appearance:none;
+}
+.ob-input::placeholder{color:var(--muted2);}
+.ob-input:focus{border-color:var(--ember);}
+.ob-textarea{min-height:90px;resize:none;line-height:1.55;}
+
+/* Option pills — tap to select */
+.ob-options{display:flex;flex-wrap:wrap;gap:7px;}
+.ob-option{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.09em;text-transform:uppercase;
+  padding:8px 14px;border-radius:3px;border:1px solid var(--border2);
+  background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;
+  white-space:nowrap;
+}
+.ob-option.sel{background:var(--ember);border-color:var(--ember);color:white;}
+.ob-option.sel-gold{background:var(--gold2);border-color:rgba(200,164,74,.4);color:var(--gold);}
+.ob-option.sel-sky{background:var(--sky2);border-color:rgba(26,111,168,.4);color:var(--sky);}
+
+/* Stage big buttons */
+.stage-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.stage-btn{
+  background:var(--ink3);border:1px solid var(--border2);border-radius:8px;
+  padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;
+}
+.stage-btn.sel{border-color:var(--ember);background:var(--ember2);}
+.stage-icon{font-size:20px;margin-bottom:6px;}
+.stage-name{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--paper);}
+.stage-desc{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;}
+
+/* Toggle row */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;background:var(--ink3);border:1px solid var(--border2);border-radius:6px;}
+.toggle-info{flex:1;}
+.toggle-title{font-size:13px;font-weight:600;color:var(--paper);}
+.toggle-desc{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;}
+.toggle-switch{width:42px;height:24px;border-radius:12px;background:var(--border2);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
+.toggle-switch.on{background:var(--ember);}
+.toggle-knob{width:18px;height:18px;border-radius:50%;background:white;position:absolute;top:3px;left:3px;transition:transform .2s;}
+.toggle-switch.on .toggle-knob{transform:translateX(18px);}
+
+/* Check size slider */
+.slider-wrap{position:relative;}
+.ob-range{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:linear-gradient(to right, var(--ember) 0%, var(--ember) 50%, var(--border2) 50%, var(--border2) 100%);outline:none;cursor:pointer;}
+.ob-range::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ember);border:2px solid var(--ink);cursor:pointer;box-shadow:0 0 0 3px rgba(229,67,26,.15);}
+.range-labels{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-top:6px;}
+.range-val{font-family:'DM Mono',monospace;font-size:12px;color:var(--ember);text-align:center;margin-top:6px;letter-spacing:.05em;}
+
+/* Two-col input */
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+
+/* Thesis char count */
+.thesis-wrap{position:relative;}
+.char-count{position:absolute;bottom:10px;right:12px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+
+/* Nav footer inside onboarding */
+.ob-nav-footer{flex-shrink:0;padding:14px 22px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--ink);}
+.ob-back{width:44px;height:44px;border-radius:50%;background:var(--ink3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;color:var(--muted);transition:all .15s;flex-shrink:0;}
+.ob-back:active{background:var(--ink4);}
+.ob-next{flex:1;padding:14px;background:var(--ember);border:none;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:white;cursor:pointer;transition:opacity .15s;}
+.ob-next:active{opacity:.82;}
+.ob-next:disabled{opacity:.35;cursor:not-allowed;}
+
+/* Summary step */
+.summary-card{background:var(--ink3);border:1px solid var(--border2);border-radius:8px;overflow:hidden;}
+.summary-row{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);}
+.summary-row:last-child{border-bottom:none;}
+.sum-icon{font-size:14px;flex-shrink:0;margin-top:1px;}
+.sum-lbl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:3px;}
+.sum-val{font-size:13px;color:var(--paper);font-weight:500;line-height:1.4;}
+.sum-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+.sum-chip{font-family:'DM Mono',monospace;font-size:8px;padding:3px 8px;background:var(--ink4);border:1px solid var(--border2);border-radius:2px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+
+/* ══════════════════════════════════════════
+   MAIN APP SCREENS (feed, dash, quiz, etc.)
+══════════════════════════════════════════ */
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--ember);display:inline-block;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.6);}}
+@keyframes slideUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+
+.live-banner{margin:10px 16px 2px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--ember);border-radius:6px;padding:12px 14px;display:flex;align-items:center;gap:12px;}
+.lb-left{flex:1;}
+.lb-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.lb-text{font-family:'Cormorant Garamond',serif;font-size:15px;color:#bbb;line-height:1.35;font-style:italic;}
+.lb-right{text-align:center;flex-shrink:0;}
+.lb-num{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--ember);font-weight:700;}
+.lb-sub{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;}
+
+.vcard{margin:0 14px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;animation:slideUp .35s ease both;}
+.vcard:nth-child(2){animation-delay:.05s;}
+.vcard:nth-child(3){animation-delay:.1s;}
+
+.vthumb{width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;}
+.vthumb-bg{position:absolute;inset:0;}
+.g1{background:linear-gradient(135deg,#1a0800 0%,#5c1800 55%,#e5431a 100%);}
+.g2{background:linear-gradient(135deg,#001520 0%,#003a5c 55%,#1a6fa8 100%);}
+.g3{background:linear-gradient(135deg,#0d1a00 0%,#2a4a00 55%,#6a9e18 100%);}
+.g4{background:linear-gradient(135deg,#180018 0%,#480040 55%,#b01f80 100%);}
+.vthumb-grain{position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.07'/%3E%3C/svg%3E");opacity:.5;}
+.vplay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;}
+.play-c{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;font-size:16px;backdrop-filter:blur(6px);}
+.vdur{font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.7);background:rgba(0,0,0,.5);padding:2px 7px;border-radius:2px;letter-spacing:.06em;}
+.vfaces{position:absolute;bottom:9px;left:11px;display:flex;}
+.vface{width:25px;height:25px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:11px;color:white;margin-left:-7px;}
+.vface:first-child{margin-left:0;}
+.fa{background:linear-gradient(135deg,#e5431a,#c8a44a);}
+.fb{background:linear-gradient(135deg,#1a6fa8,#00c4ff);}
+.fc{background:linear-gradient(135deg,#5a8a6a,#2d7b2d);}
+.fd{background:linear-gradient(135deg,#b01f80,#7b2d8b);}
+.vmatch{position:absolute;top:9px;right:10px;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border:1px solid rgba(229,67,26,.4);border-radius:3px;padding:3px 8px;font-family:'DM Mono',monospace;font-size:9px;color:var(--ember);letter-spacing:.05em;}
+.sent-row{display:flex;gap:5px;flex-wrap:wrap;padding:10px 13px 0;}
+.sent-badge{display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:2px;}
+.sent-comm{background:var(--sky2);color:var(--sky);border:1px solid rgba(26,111,168,.25);}
+.sent-lead{background:var(--ember2);color:var(--ember);border:1px solid rgba(229,67,26,.2);}
+.sent-energy{background:var(--gold2);color:var(--gold);border:1px solid rgba(200,164,74,.25);}
+.sent-collab{background:var(--sage2);color:var(--sage);border:1px solid rgba(90,138,106,.25);}
+.cbody{padding:11px 14px;}
+.cscen{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ember);margin-bottom:5px;}
+.cprompt{font-family:'Cormorant Garamond',serif;font-size:17px;line-height:1.3;color:var(--paper);margin-bottom:10px;}
+.cco-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.cco-dot{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:14px;font-weight:700;color:white;flex-shrink:0;}
+.d1{background:#e5431a;} .d2{background:#1a6fa8;} .d3{background:#5a8a6a;} .d4{background:#b01f80;}
+.cco-info{flex:1;}
+.cco-name{font-size:13px;font-weight:600;color:var(--paper);}
+.cco-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;}
+.stage-p{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold);background:var(--gold2);border:1px solid rgba(200,164,74,.25);padding:3px 8px;border-radius:2px;}
+.ctags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.ctag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;background:var(--ink3);border:1px solid var(--border2);border-radius:2px;color:var(--muted);}
+.cactions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding-top:10px;border-top:1px solid var(--border);}
+.act-btn{padding:9px 4px;border-radius:4px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;border:none;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:4px;}
+.act-interested{background:var(--ember);color:white;}
+.act-pass{background:var(--ink3);color:var(--muted);border:1px solid var(--border2);}
+.act-save{background:var(--gold2);color:var(--gold);border:1px solid rgba(200,164,74,.25);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);z-index:500;display:none;flex-direction:column;justify-content:flex-end;animation:fadeIn .2s ease;}
+.modal-overlay.open{display:flex;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.modal-sheet{background:var(--ink2);border-radius:16px 16px 0 0;border-top:1px solid var(--border2);max-height:90dvh;overflow-y:auto;animation:sheetUp .25s ease;}
+.modal-sheet::-webkit-scrollbar{display:none;}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-handle{width:36px;height:4px;background:var(--border2);border-radius:4px;margin:12px auto 16px;}
+.modal-video{width:100%;aspect-ratio:16/9;background:var(--ink);position:relative;overflow:hidden;}
+.modal-video-bg{position:absolute;inset:0;}
+.modal-play-large{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.modal-play-c{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:22px;backdrop-filter:blur(8px);}
+.modal-faces-row{position:absolute;bottom:12px;left:14px;display:flex;gap:4px;}
+.modal-face{width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:14px;color:white;}
+.modal-body{padding:18px 20px;}
+.modal-co-name{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--paper);font-weight:700;}
+.modal-co-stage{font-family:'DM Mono',monospace;font-size:9px;color:var(--gold);}
+.modal-prompt-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);margin:10px 0 6px;}
+.modal-prompt-text{font-family:'Cormorant Garamond',serif;font-size:18px;line-height:1.35;color:#ccc;font-style:italic;margin-bottom:16px;}
+.sent-section-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:12px;}
+.sent-breakdown{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;}
+.sb-row{background:var(--ink3);border:1px solid var(--border);border-radius:6px;padding:12px 14px;}
+.sb-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.sb-label{font-size:13px;font-weight:600;color:var(--paper);}
+.sb-score{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;}
+.score-high{color:var(--sage);} .score-med{color:var(--gold);} .score-low{color:var(--ember);}
+.sb-bar-track{width:100%;height:4px;background:var(--ink4);border-radius:4px;overflow:hidden;margin-bottom:6px;}
+.sb-bar-fill{height:100%;border-radius:4px;}
+.fill-high{background:var(--sage);} .fill-med{background:var(--gold);} .fill-low{background:var(--ember);}
+.sb-desc{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.04em;line-height:1.5;}
+.modal-match-block{background:var(--ink3);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;}
+.mmb-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.mmb-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);}
+.mmb-score{font-family:'Cormorant Garamond',serif;font-size:32px;color:var(--ember);font-weight:700;}
+.mmb-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.mmb-lbl{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);width:70px;text-transform:uppercase;letter-spacing:.05em;}
+.mmb-track{flex:1;height:3px;background:var(--ink4);border-radius:3px;overflow:hidden;}
+.mmb-fill{height:100%;border-radius:3px;background:var(--ember);}
+.modal-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.modal-act{padding:12px;border-radius:5px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:none;cursor:pointer;}
+.ma-int{background:var(--ember);color:white;} .ma-pass{background:var(--ink3);color:var(--muted);border:1px solid var(--border2);} .ma-save{background:var(--gold2);color:var(--gold);border:1px solid rgba(200,164,74,.25);}
+
+/* DASH */
+.dash-hero{margin:12px 16px 0;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;position:relative;overflow:hidden;}
+.dash-hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse at 80% 50%,rgba(229,67,26,.08) 0%,transparent 70%);}
+.dash-hero-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;}
+.dash-hero-title{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--paper);line-height:1.15;margin-bottom:14px;}
+.dash-hero-title em{color:var(--ember);font-style:italic;}
+.dash-metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.dmg-item{background:var(--ink3);border:1px solid var(--border2);border-radius:6px;padding:12px;}
+.dmg-num{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;}
+.dmg-lbl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:2px;}
+.match-quality-legend{margin:12px 16px 0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.mql-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;}
+.mql-rows{display:flex;flex-direction:column;gap:6px;}
+.mql-row{display:flex;align-items:center;gap:10px;}
+.mql-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.mql-name{font-size:13px;color:var(--paper);font-weight:500;flex:1;}
+.mql-range{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+.match-card{margin:0 16px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;animation:slideUp .35s ease both;}
+.mc-top{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);}
+.mc-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:white;flex-shrink:0;}
+.mc-info{flex:1;}
+.mc-name{font-size:14px;font-weight:600;color:var(--paper);}
+.mc-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;}
+.mc-score-pill{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;padding:4px 12px;border-radius:4px;}
+.score-green{background:var(--sage2);color:var(--sage);border:1px solid rgba(90,138,106,.3);}
+.score-amber{background:var(--gold2);color:var(--gold);border:1px solid rgba(200,164,74,.3);}
+.mc-bars{padding:12px 16px;display:flex;flex-direction:column;gap:6px;}
+.mc-bar-row{display:flex;align-items:center;gap:8px;}
+.mc-bar-lbl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);width:68px;}
+.mc-bar-track{flex:1;height:3px;background:var(--ink3);border-radius:3px;overflow:hidden;}
+.mc-bar-fill{height:100%;border-radius:3px;}
+.mc-sent-row{padding:0 16px 12px;display:flex;gap:5px;flex-wrap:wrap;}
+.mc-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:0 14px 14px;}
+
+/* QUIZ */
+.quiz-sel{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;flex-shrink:0;border-bottom:1px solid var(--border);}
+.quiz-sel::-webkit-scrollbar{display:none;}
+.qsel-btn{white-space:nowrap;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+.qsel-btn.active{background:var(--ember);border-color:var(--ember);color:white;}
+.quiz-prompt-block{background:var(--ink2);border-bottom:1px solid var(--border);padding:18px 20px 16px;position:relative;overflow:hidden;flex-shrink:0;}
+.qpb-bg{position:absolute;right:-15px;top:-20px;font-size:90px;opacity:.04;transform:rotate(12deg);}
+.qpb-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--ember);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.qpb-title{font-family:'Cormorant Garamond',serif;font-size:19px;line-height:1.3;color:var(--paper);font-style:italic;margin-bottom:12px;}
+.qpb-meta{display:flex;align-items:center;gap:10px;}
+.qpb-template{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);background:var(--ink3);border:1px solid var(--border2);padding:3px 10px;border-radius:2px;text-transform:uppercase;letter-spacing:.08em;}
+.qpb-timer{font-family:'DM Mono',monospace;font-size:12px;color:var(--ember);margin-left:auto;letter-spacing:.08em;}
+.cam-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;}
+.cam{aspect-ratio:4/3;border-radius:8px;background:var(--ink2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s;}
+.cam.speaking{border-color:var(--ember);box-shadow:0 0 0 1px var(--ember),0 0 14px rgba(229,67,26,.12);}
+.cam-av{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:white;}
+.cam-name{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;}
+.cam-live{position:absolute;top:7px;left:7px;background:var(--ember);font-family:'DM Mono',monospace;font-size:7px;color:white;padding:2px 6px;border-radius:2px;letter-spacing:.08em;text-transform:uppercase;}
+.cam-mic{position:absolute;bottom:7px;right:7px;font-size:12px;opacity:.4;}
+.cam-add{border-style:dashed;}
+.cam-add-icon{font-size:20px;opacity:.2;}
+.cam-add-lbl{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;}
+.rec-section{padding:0 16px;}
+.rec-track{width:100%;height:3px;background:var(--ink3);border-radius:3px;overflow:hidden;margin-bottom:7px;}
+.rec-fill{height:100%;background:var(--ember);border-radius:3px;width:42%;transition:width .5s linear;}
+.rec-times{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;}
+.rec-el{color:var(--ember);}
+.rec-mx{color:var(--muted2);}
+.rec-controls{display:flex;align-items:center;justify-content:center;gap:18px;padding:16px 16px 10px;}
+.ctrl{width:44px;height:44px;border-radius:50%;background:var(--ink3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;color:var(--muted);}
+.rec-stop{width:62px;height:62px;border-radius:50%;background:var(--ember);border:none;display:flex;align-items:center;justify-content:center;font-size:20px;color:white;cursor:pointer;box-shadow:0 0 0 6px rgba(229,67,26,.12);animation:recGlow 2s ease-in-out infinite;}
+@keyframes recGlow{0%,100%{box-shadow:0 0 0 6px rgba(229,67,26,.12);}50%{box-shadow:0 0 0 10px rgba(229,67,26,.04);}}
+.submit-wrap{padding:8px 16px 0;}
+.submit-btn{width:100%;padding:14px;background:var(--paper);border:none;border-radius:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);cursor:pointer;font-weight:600;}
+.tips-row{display:flex;gap:9px;padding:14px 16px 6px;overflow-x:auto;}
+.tips-row::-webkit-scrollbar{display:none;}
+.tip{min-width:148px;background:var(--ink2);border:1px solid var(--border);border-radius:7px;padding:11px 12px;flex-shrink:0;}
+.tip-icon{font-size:15px;margin-bottom:5px;}
+.tip-txt{font-size:11px;color:var(--muted);line-height:1.5;}
+
+/* FOUNDER VIEW */
+.founder-stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border);flex-shrink:0;}
+.fst{padding:12px 8px;text-align:center;border-right:1px solid var(--border);}
+.fst:last-child{border-right:none;}
+.fst-num{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;}
+.fst-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-top:2px;}
+.hscroll{display:flex;gap:9px;padding:0 16px 4px;overflow-x:auto;}
+.hscroll::-webkit-scrollbar{display:none;}
+.sub-thumb{width:120px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--card);border:1px solid var(--border);cursor:pointer;}
+.st-vid{width:100%;aspect-ratio:4/3;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.st-play{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:11px;z-index:1;}
+.st-dur{position:absolute;top:6px;left:6px;font-family:'DM Mono',monospace;font-size:7px;color:rgba(255,255,255,.6);}
+.st-body{padding:7px 9px;}
+.st-views{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:2px;}
+.st-lbl{font-size:11px;font-weight:600;color:#bbb;line-height:1.3;}
+.sub-add{border:1.5px dashed var(--border2);display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:1;cursor:pointer;background:transparent;}
+.sub-add-icon{font-size:20px;opacity:.18;margin-bottom:4px;}
+.sub-add-lbl{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;}
+.vcpc{margin:0 14px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;animation:slideUp .35s ease both;}
+.vcpc-top{display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid var(--border);}
+.vc-av{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700;color:white;flex-shrink:0;}
+.vca1{background:linear-gradient(135deg,#003a5c,#1a6fa8);} .vca2{background:linear-gradient(135deg,#3a1a5c,#7b2d8b);}
+.vcpc-info{flex:1;}
+.vcpc-name{font-size:15px;font-weight:700;color:var(--paper);}
+.vcpc-firm{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:.04em;}
+.vcpc-check{font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:var(--gold);background:var(--gold2);border:1px solid rgba(200,164,74,.2);padding:3px 8px;border-radius:2px;margin-top:5px;display:inline-block;}
+.vcpc-thesis{display:flex;align-items:center;gap:5px;background:var(--ink3);border:1px solid var(--border2);border-radius:5px;padding:7px 10px;flex-shrink:0;cursor:pointer;}
+.vcpc-thesis-lbl{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;line-height:1.4;}
+.vcpc-body{padding:12px 15px;}
+.vcpc-bio{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:11px;}
+.vcpc-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:11px;}
+.vcpc-filter{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;background:var(--ink3);border:1px solid var(--border2);border-radius:2px;color:var(--muted);}
+.match-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.mbl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);width:64px;}
+.mbt{flex:1;height:3px;background:var(--ink3);border-radius:3px;overflow:hidden;}
+.mbf{height:100%;border-radius:3px;background:var(--ember);}
+.vcpc-footer{display:grid;grid-template-columns:1fr 2fr;gap:7px;padding:0 14px 14px;}
+.btn-save{padding:10px;border:1px solid var(--border2);background:transparent;border-radius:4px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;}
+.btn-connect{padding:10px;border:none;background:var(--ember);border-radius:4px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:white;cursor:pointer;}
+
+/* MESSAGING */
+.msg-item{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;}
+.msg-av{width:44px;height:44px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:white;}
+.msg-content{flex:1;min-width:0;}
+.msg-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px;}
+.msg-name{font-size:14px;font-weight:600;color:var(--paper);}
+.msg-time{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+.msg-preview{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msg-unread{width:8px;height:8px;border-radius:50%;background:var(--ember);flex-shrink:0;}
+.msg-status-pill{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;flex-shrink:0;}
+.st-interested{background:var(--ember2);color:var(--ember);border:1px solid rgba(229,67,26,.2);}
+.st-saved{background:var(--gold2);color:var(--gold);border:1px solid rgba(200,164,74,.2);}
+
+.spacer{height:10px;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="sb">
+    <div class="sb-time">9:41</div>
+    <div class="sb-icons"><span>📶</span><span>🔋</span></div>
+  </div>
+
+  <!-- ╔══════════════════════╗
+       ║  ROLE SELECTION      ║
+       ╚══════════════════════╝ -->
+  <div class="screen active" id="s-onboard">
+    <div class="sa" style="display:flex;align-items:center;justify-content:center;">
+      <div class="ob-wrap">
+        <div class="ob-flame">🔥</div>
+        <div class="ob-logo">Cruc<span>ible</span></div>
+        <div class="ob-sub">// Pre-seed & seed · behavioral matching</div>
+        <div class="ob-q">I am joining as a —</div>
+        <div class="ob-roles">
+          <div class="ob-role sel" id="role-founder" onclick="selectRole('founder')">
+            <div class="ob-role-icon">🚀</div>
+            <div class="ob-role-name">Founder</div>
+            <div class="ob-role-desc">Seeking aligned<br/>investors</div>
+          </div>
+          <div class="ob-role" id="role-vc" onclick="selectRole('vc')">
+            <div class="ob-role-icon">💼</div>
+            <div class="ob-role-name">Investor</div>
+            <div class="ob-role-desc">Evaluating<br/>team dynamics</div>
+          </div>
+        </div>
+        <button class="ob-cta" onclick="startOnboarding()">Continue →</button>
+        <div class="ob-signin">Already have an account? <a href="#">Sign in</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════════╗
+       ║  FOUNDER ONBOARDING  (3 steps)       ║
+       ╚══════════════════════════════════════╝ -->
+  <div class="screen" id="s-ob-founder">
+    <div class="ob-step-hdr">
+      <div class="ob-step-logo">Cruc<span>ible</span></div>
+      <div class="ob-skip" onclick="finishOnboarding()">Skip for now</div>
+    </div>
+    <div class="ob-progress">
+      <div class="ob-prog-top">
+        <div class="ob-prog-label" id="f-prog-label">Step 1 of 3 — Startup Basics</div>
+        <div class="ob-prog-step" id="f-prog-step">1 / 3</div>
+      </div>
+      <div class="ob-prog-track"><div class="ob-prog-fill" id="f-prog-fill" style="width:33%"></div></div>
+    </div>
+
+    <div class="ob-steps-wrap">
+
+      <!-- FOUNDER STEP 1: Startup Basics -->
+      <div class="ob-step visible" id="f-step-1">
+        <div>
+          <div class="step-title">Your <span>Startup</span></div>
+          <div class="step-sub">Tell us the basics so investors can find you.</div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Startup Name</div>
+          <input class="ob-input" type="text" placeholder="e.g. Vanta AI" id="f-name"/>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Current Funding Stage</div>
+          <div class="stage-grid">
+            <div class="stage-btn" onclick="stageSelect(this,'f-stage','pre-seed')">
+              <div class="stage-icon">🌱</div>
+              <div class="stage-name">Pre-Seed</div>
+              <div class="stage-desc">&lt; $1M</div>
+            </div>
+            <div class="stage-btn sel" onclick="stageSelect(this,'f-stage','seed')">
+              <div class="stage-icon">🌿</div>
+              <div class="stage-name">Seed</div>
+              <div class="stage-desc">$1M – $4M</div>
+            </div>
+            <div class="stage-btn" onclick="stageSelect(this,'f-stage','series-a')">
+              <div class="stage-icon">🌳</div>
+              <div class="stage-name">Series A</div>
+              <div class="stage-desc">$4M+</div>
+            </div>
+          </div>
+          <input type="hidden" id="f-stage" value="seed"/>
+        </div>
+        <div class="input-row">
+          <div class="ob-field">
+            <div class="ob-label">Amount Raised (USD)</div>
+            <input class="ob-input" type="text" placeholder="e.g. $2.4M" id="f-raised"/>
+          </div>
+          <div class="ob-field">
+            <div class="ob-label">Target Raise</div>
+            <input class="ob-input" type="text" placeholder="e.g. $5M" id="f-target"/>
+          </div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Headquarters City</div>
+          <input class="ob-input" type="text" placeholder="e.g. San Francisco, CA" id="f-geo"/>
+        </div>
+      </div>
+
+      <!-- FOUNDER STEP 2: Team + Details -->
+      <div class="ob-step hidden-right" id="f-step-2">
+        <div>
+          <div class="step-title">Team & <span>Details</span></div>
+          <div class="step-sub">Help investors understand your startup's makeup and traction.</div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Industry / Sector <span style="color:var(--muted);font-size:8px;">(select all that apply)</span></div>
+          <div class="ob-options" id="f-sectors">
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">AI / ML</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">B2B SaaS</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Fintech</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Climate</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Health Tech</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Dev Tools</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Consumer</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Deep Tech</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-sectors','single-line')">Other</div>
+          </div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Full-Time Team Size</div>
+          <div class="ob-options" id="f-team">
+            <div class="ob-option" onclick="toggleOption(this,'f-team','radio')">Solo founder</div>
+            <div class="ob-option sel" onclick="toggleOption(this,'f-team','radio')">2–3 people</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-team','radio')">4–10 people</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-team','radio')">10+ people</div>
+          </div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">MVP Status</div>
+          <div class="ob-options" id="f-mvp">
+            <div class="ob-option" onclick="toggleOption(this,'f-mvp','radio')">Pre-MVP (idea stage)</div>
+            <div class="ob-option sel" onclick="toggleOption(this,'f-mvp','radio')">MVP built, testing</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-mvp','radio')">Live with customers</div>
+          </div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Revenue Status</div>
+          <div class="ob-options" id="f-revenue">
+            <div class="ob-option sel" onclick="toggleOption(this,'f-revenue','radio')">Pre-revenue</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-revenue','radio')">First revenue</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-revenue','radio')">$10K+ MRR</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-revenue','radio')">$100K+ MRR</div>
+          </div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Funding Type Seeking</div>
+          <div class="ob-options" id="f-funding">
+            <div class="ob-option sel" onclick="toggleOption(this,'f-funding','single-line')">Equity</div>
+            <div class="ob-option sel" onclick="toggleOption(this,'f-funding','single-line')">SAFE</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-funding','single-line')">Convertible Note</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-funding','single-line')">Revenue-Based</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOUNDER STEP 3: Value-Add + Summary -->
+      <div class="ob-step hidden-right" id="f-step-3">
+        <div>
+          <div class="step-title">What You <span>Need</span></div>
+          <div class="step-sub">Beyond capital — what value-add matters most?</div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Value-Add Preferences <span style="color:var(--muted);font-size:8px;">(select top priorities)</span></div>
+          <div class="ob-options" id="f-valueadd">
+            <div class="ob-option sel" onclick="toggleOption(this,'f-valueadd','single-line')">GTM Strategy</div>
+            <div class="ob-option sel" onclick="toggleOption(this,'f-valueadd','single-line')">Recruiting</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-valueadd','single-line')">Enterprise Intros</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-valueadd','single-line')">PR / Media</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-valueadd','single-line')">Follow-on Capital</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-valueadd','single-line')">Product Feedback</div>
+            <div class="ob-option" onclick="toggleOption(this,'f-valueadd','single-line')">Regulatory Guidance</div>
+          </div>
+        </div>
+
+        <div class="ob-field">
+          <div class="ob-label">// Profile Summary</div>
+          <div class="summary-card">
+            <div class="summary-row">
+              <div class="sum-icon">🏢</div>
+              <div><div class="sum-lbl">Startup</div><div class="sum-val" id="sum-f-name">Vanta AI · Seed · $2.4M raised</div></div>
+            </div>
+            <div class="summary-row">
+              <div class="sum-icon">📍</div>
+              <div><div class="sum-lbl">Location</div><div class="sum-val" id="sum-f-geo">San Francisco, CA</div></div>
+            </div>
+            <div class="summary-row">
+              <div class="sum-icon">🗺</div>
+              <div>
+                <div class="sum-lbl">Sectors</div>
+                <div class="sum-chips" id="sum-f-sectors">
+                  <span class="sum-chip">AI / ML</span><span class="sum-chip">B2B SaaS</span>
+                </div>
+              </div>
+            </div>
+            <div class="summary-row">
+              <div class="sum-icon">👥</div>
+              <div><div class="sum-lbl">Team · MVP · Revenue</div><div class="sum-val" id="sum-f-details">2–3 people · MVP Built · Pre-revenue</div></div>
+            </div>
+            <div class="summary-row" style="border-bottom:none;">
+              <div class="sum-icon">💰</div>
+              <div>
+                <div class="sum-lbl">Funding Type</div>
+                <div class="sum-chips"><span class="sum-chip">Equity</span><span class="sum-chip">SAFE</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /ob-steps-wrap -->
+
+    <div class="ob-nav-footer">
+      <div class="ob-back" id="f-back-btn" onclick="founderStep('back')" style="opacity:0.3;pointer-events:none;">←</div>
+      <button class="ob-next" id="f-next-btn" onclick="founderStep('next')">Next →</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════════╗
+       ║  INVESTOR ONBOARDING  (3 steps)      ║
+       ╚══════════════════════════════════════╝ -->
+  <div class="screen" id="s-ob-investor">
+    <div class="ob-step-hdr">
+      <div class="ob-step-logo">Cruc<span>ible</span></div>
+      <div class="ob-skip" onclick="finishOnboarding()">Skip for now</div>
+    </div>
+    <div class="ob-progress">
+      <div class="ob-prog-top">
+        <div class="ob-prog-label" id="i-prog-label">Step 1 of 3 — Investment Stage</div>
+        <div class="ob-prog-step" id="i-prog-step">1 / 3</div>
+      </div>
+      <div class="ob-prog-track"><div class="ob-prog-fill" id="i-prog-fill" style="width:33%"></div></div>
+    </div>
+
+    <div class="ob-steps-wrap">
+
+      <!-- INVESTOR STEP 1: Stage + Check Size -->
+      <div class="ob-step visible" id="i-step-1">
+        <div>
+          <div class="step-title">Your <span>Focus</span></div>
+          <div class="step-sub">Tell us where you invest so founders can find you.</div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Preferred Stage</div>
+          <div class="stage-grid" style="grid-template-columns:1fr 1fr 1fr;">
+            <div class="stage-btn" onclick="stageSelect(this,'i-stage','pre-seed')">
+              <div class="stage-icon">🌱</div>
+              <div class="stage-name">Pre-Seed</div>
+              <div class="stage-desc">Idea → MVP</div>
+            </div>
+            <div class="stage-btn sel" onclick="stageSelect(this,'i-stage','seed')">
+              <div class="stage-icon">🌿</div>
+              <div class="stage-name">Seed</div>
+              <div class="stage-desc">MVP → PMF</div>
+            </div>
+            <div class="stage-btn" onclick="stageSelect(this,'i-stage','both')">
+              <div class="stage-icon">⚡</div>
+              <div class="stage-name">Both</div>
+              <div class="stage-desc">Flexible</div>
+            </div>
+          </div>
+          <input type="hidden" id="i-stage" value="seed"/>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Typical Check Size</div>
+          <div style="background:var(--ink3);border:1px solid var(--border2);border-radius:8px;padding:18px 16px;">
+            <input type="range" class="ob-range" id="i-check-slider" min="0" max="6" step="1" value="3" oninput="updateCheckSize(this.value)"/>
+            <div class="range-labels">
+              <span>$25K</span><span>$50K</span><span>$100K</span><span>$250K</span><span>$500K</span><span>$1M</span><span>$3M+</span>
+            </div>
+            <div class="range-val" id="i-check-val">$250K</div>
+          </div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Geography Focus <span style="color:var(--muted);font-size:8px;">(select all)</span></div>
+          <div class="ob-options" id="i-geo">
+            <div class="ob-option sel" onclick="toggleOption(this,'i-geo','single-line')">US — West Coast</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-geo','single-line')">US — East Coast</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-geo','single-line')">US — South / Midwest</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-geo','single-line')">Latin America</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-geo','single-line')">Europe</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-geo','single-line')">Global / Remote-first</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVESTOR STEP 2: Sectors + Filters -->
+      <div class="ob-step hidden-right" id="i-step-2">
+        <div>
+          <div class="step-title">Your <span>Filters</span></div>
+          <div class="step-sub">We use these to surface the right founders for you.</div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Sector Focus <span style="color:var(--muted);font-size:8px;">(select all)</span></div>
+          <div class="ob-options" id="i-sectors">
+            <div class="ob-option sel" onclick="toggleOption(this,'i-sectors','single-line')">AI / ML</div>
+            <div class="ob-option sel" onclick="toggleOption(this,'i-sectors','single-line')">B2B SaaS</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-sectors','single-line')">Fintech</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-sectors','single-line')">Climate</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-sectors','single-line')">Health Tech</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-sectors','single-line')">Dev Tools</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-sectors','single-line')">Consumer</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-sectors','single-line')">Deep Tech</div>
+          </div>
+        </div>
+
+        <div class="ob-field">
+          <div class="ob-label">Team Filters</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="toggle-row" id="tog-bipoc" onclick="toggleSwitch('tog-bipoc')">
+              <div class="toggle-info">
+                <div class="toggle-title">BIPOC-led Founders</div>
+                <div class="toggle-desc">Prioritize BIPOC-founded startups in my feed</div>
+              </div>
+              <div class="toggle-switch on" id="sw-bipoc"><div class="toggle-knob"></div></div>
+            </div>
+            <div class="toggle-row" id="tog-women" onclick="toggleSwitch('tog-women')">
+              <div class="toggle-info">
+                <div class="toggle-title">Women-led Founders</div>
+                <div class="toggle-desc">Prioritize women-founded startups in my feed</div>
+              </div>
+              <div class="toggle-switch on" id="sw-women"><div class="toggle-knob"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ob-field">
+          <div class="ob-label">Startup Requirements</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="toggle-row" id="tog-mvp" onclick="toggleSwitch('tog-mvp')">
+              <div class="toggle-info">
+                <div class="toggle-title">MVP Required</div>
+                <div class="toggle-desc">Only show startups with a built product</div>
+              </div>
+              <div class="toggle-switch" id="sw-mvp"><div class="toggle-knob"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ob-field">
+          <div class="ob-label">Revenue Status</div>
+          <div class="ob-options" id="i-revenue">
+            <div class="ob-option sel" onclick="toggleOption(this,'i-revenue','single-line')">Pre-revenue OK</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-revenue','single-line')">First revenue min.</div>
+            <div class="ob-option" onclick="toggleOption(this,'i-revenue','single-line')">$10K+ MRR min.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVESTOR STEP 3: Thesis + Summary -->
+      <div class="ob-step hidden-right" id="i-step-3">
+        <div>
+          <div class="step-title">Your <span>Thesis</span></div>
+          <div class="step-sub">Founders read this. Be clear about what excites you.</div>
+        </div>
+        <div class="ob-field">
+          <div class="ob-label">Investment Thesis</div>
+          <div class="thesis-wrap">
+            <textarea class="ob-input ob-textarea" id="i-thesis" maxlength="400" placeholder="e.g. I back pre-seed and seed B2B SaaS teams with strong technical founders who can sell. I look for operational resilience — how a team behaves under pressure matters more to me than pitch polish..." oninput="updateCharCount(this)"></textarea>
+            <div class="char-count" id="i-char">0 / 400</div>
+          </div>
+        </div>
+
+        <div class="ob-field">
+          <div class="ob-label">// Profile Summary</div>
+          <div class="summary-card">
+            <div class="summary-row">
+              <div class="sum-icon">📊</div>
+              <div><div class="sum-lbl">Stage · Check Size</div><div class="sum-val" id="sum-i-stage">Seed · $250K typical</div></div>
+            </div>
+            <div class="summary-row">
+              <div class="sum-icon">📍</div>
+              <div><div class="sum-lbl">Geography</div><div class="sum-val">US — West Coast</div></div>
+            </div>
+            <div class="summary-row">
+              <div class="sum-icon">🗺</div>
+              <div>
+                <div class="sum-lbl">Sector Focus</div>
+                <div class="sum-chips">
+                  <span class="sum-chip">AI / ML</span><span class="sum-chip">B2B SaaS</span>
+                </div>
+              </div>
+            </div>
+            <div class="summary-row" style="border-bottom:none;">
+              <div class="sum-icon">⚙️</div>
+              <div>
+                <div class="sum-lbl">Active Filters</div>
+                <div class="sum-chips">
+                  <span class="sum-chip">BIPOC-led</span><span class="sum-chip">Women-led</span><span class="sum-chip">Pre-revenue OK</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /ob-steps-wrap -->
+
+    <div class="ob-nav-footer">
+      <div class="ob-back" id="i-back-btn" onclick="investorStep('back')" style="opacity:0.3;pointer-events:none;">←</div>
+      <button class="ob-next" id="i-next-btn" onclick="investorStep('next')">Next →</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════╗
+       ║  VC FEED             ║
+       ╚══════════════════════╝ -->
+  <div class="screen" id="s-feed">
+    <div class="hdr">
+      <div class="hdr-top">
+        <div class="logo">Cruc<span>ible</span></div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="role-badge" id="feed-role-badge">Founder View</div>
+          <div class="hdr-avatar">M</div>
+        </div>
+      </div>
+    </div>
+    <div class="chip-row">
+      <div class="chip active">All</div><div class="chip">🔥 Trending</div>
+      <div class="chip">Seed</div><div class="chip">AI / ML</div><div class="chip">Climate</div>
+    </div>
+    <div class="sa">
+      <div class="live-banner">
+        <div class="lb-left">
+          <div class="lb-tag"><div class="live-dot" style="display:inline-block;vertical-align:middle;"></div>&nbsp;Live Scenario</div>
+          <div class="lb-text">"48th floor, Santander Building, Dallas. Floors 20–30 on fire."</div>
+        </div>
+        <div class="lb-right"><div class="lb-num">62</div><div class="lb-sub">recording</div></div>
+      </div>
+      <div class="sec">// New Submissions · 247 this week</div>
+      <div class="vcard" onclick="openModal()">
+        <div class="vthumb"><div class="vthumb-bg g1"></div><div class="vthumb-grain"></div>
+          <div class="vplay"><div class="play-c">▶</div><div class="vdur">2:47</div></div>
+          <div class="vfaces"><div class="vface fa">J</div><div class="vface fb">A</div><div class="vface fc">R</div></div>
+          <div class="vmatch">94% match</div>
+        </div>
+        <div class="sent-row"><div class="sent-badge sent-lead">⚡ Clear Leadership</div><div class="sent-badge sent-energy">🔆 High Energy</div><div class="sent-badge sent-comm">🗣 Strong Comm.</div></div>
+        <div class="cbody">
+          <div class="cscen">🔥 Prompt 1 — Fire Escape · Dallas</div>
+          <div class="cprompt">"48th floor. Floors 20–30 on fire. How does your team get out?"</div>
+          <div class="cco-row"><div class="cco-dot d1">V</div><div class="cco-info"><div class="cco-name">Vanta AI</div><div class="cco-sub">San Francisco · B2B SaaS · Security</div></div><div class="stage-p">Seed · $2.4M</div></div>
+          <div class="ctags"><span class="ctag">AI Infra</span><span class="ctag">B2B</span><span class="ctag">3-person team</span></div>
+          <div class="cactions">
+            <button class="act-btn act-interested" onclick="event.stopPropagation();actOn(this,'interested')">✓ Interested</button>
+            <button class="act-btn act-pass" onclick="event.stopPropagation();actOn(this,'pass')">✕ Pass</button>
+            <button class="act-btn act-save" onclick="event.stopPropagation();actOn(this,'save')">♡ Save</button>
+          </div>
+        </div>
+      </div>
+      <div class="vcard" onclick="openModal()">
+        <div class="vthumb"><div class="vthumb-bg g2"></div><div class="vthumb-grain"></div>
+          <div class="vplay"><div class="play-c">▶</div><div class="vdur">3:12</div></div>
+          <div class="vfaces"><div class="vface fb">S</div><div class="vface fd">K</div></div>
+          <div class="vmatch">88% match</div>
+        </div>
+        <div class="sent-row"><div class="sent-badge sent-collab">🤝 Collaborative</div><div class="sent-badge sent-comm">🗣 Strong Comm.</div></div>
+        <div class="cbody">
+          <div class="cscen">✈️ Prompt 2 — Japan Tai-Chi Challenge</div>
+          <div class="cprompt">"1 week in Japan. No contacts. Become Tai-Chi experts before NYC."</div>
+          <div class="cco-row"><div class="cco-dot d2">F</div><div class="cco-info"><div class="cco-name">Fluxon Labs</div><div class="cco-sub">New York · Dev Tools · PLG</div></div><div class="stage-p">Series A · $8M</div></div>
+          <div class="ctags"><span class="ctag">Open Source</span><span class="ctag">2-person</span></div>
+          <div class="cactions">
+            <button class="act-btn act-interested" onclick="event.stopPropagation();actOn(this,'interested')">✓ Interested</button>
+            <button class="act-btn act-pass" onclick="event.stopPropagation();actOn(this,'pass')">✕ Pass</button>
+            <button class="act-btn act-save" onclick="event.stopPropagation();actOn(this,'save')">♡ Save</button>
+          </div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════╗
+       ║  MATCH DASHBOARD     ║
+       ╚══════════════════════╝ -->
+  <div class="screen" id="s-dash">
+    <div class="hdr"><div class="hdr-top"><div class="logo">Cruc<span>ible</span></div><div style="display:flex;align-items:center;gap:9px;"><div class="role-badge">Matches</div><div class="hdr-avatar">M</div></div></div></div>
+    <div class="sa">
+      <div class="dash-hero">
+        <div class="dash-hero-bg"></div>
+        <div class="dash-hero-label">// Matching Dashboard</div>
+        <div class="dash-hero-title">Maya Chen<br/><em>Partner · Sequoia</em></div>
+        <div class="dash-metric-grid">
+          <div class="dmg-item"><div class="dmg-num" style="color:var(--ember)">34%</div><div class="dmg-lbl">Match Accept Rate</div></div>
+          <div class="dmg-item"><div class="dmg-num" style="color:var(--gold)">8.4m</div><div class="dmg-lbl">Avg Watch Time</div></div>
+          <div class="dmg-item"><div class="dmg-num" style="color:var(--sage)">62%</div><div class="dmg-lbl">Founder Response</div></div>
+          <div class="dmg-item"><div class="dmg-num" style="color:var(--sky)">71%</div><div class="dmg-lbl">Quiz Completion</div></div>
+        </div>
+      </div>
+      <div class="match-quality-legend">
+        <div class="mql-title">// Match Quality Indicator</div>
+        <div class="mql-rows">
+          <div class="mql-row"><div class="mql-dot" style="background:var(--sage)"></div><div class="mql-name">Strong Match</div><div class="mql-range">85–100%</div></div>
+          <div class="mql-row"><div class="mql-dot" style="background:var(--gold)"></div><div class="mql-name">Good Match</div><div class="mql-range">65–84%</div></div>
+          <div class="mql-row"><div class="mql-dot" style="background:var(--ember)"></div><div class="mql-name">Possible Match</div><div class="mql-range">40–64%</div></div>
+          <div class="mql-row"><div class="mql-dot" style="background:var(--muted2)"></div><div class="mql-name">Low Alignment</div><div class="mql-range">&lt; 40%</div></div>
+        </div>
+      </div>
+      <div class="sec">// Top Matches For You</div>
+      <div class="match-card">
+        <div class="mc-top">
+          <div class="mc-avatar" style="background:linear-gradient(135deg,#e5431a,#c8a44a)">V</div>
+          <div class="mc-info"><div class="mc-name">Vanta AI</div><div class="mc-sub">Jake Torres · CEO · Seed · $2.4M</div></div>
+          <div class="mc-score-pill score-green">94%</div>
+        </div>
+        <div class="mc-bars">
+          <div class="mc-bar-row"><div class="mc-bar-lbl">Thesis Fit</div><div class="mc-bar-track"><div class="mc-bar-fill" style="width:96%;background:var(--sage)"></div></div></div>
+          <div class="mc-bar-row"><div class="mc-bar-lbl">Stage</div><div class="mc-bar-track"><div class="mc-bar-fill" style="width:92%;background:var(--sage)"></div></div></div>
+          <div class="mc-bar-row"><div class="mc-bar-lbl">Sector</div><div class="mc-bar-track"><div class="mc-bar-fill" style="width:98%;background:var(--sage)"></div></div></div>
+          <div class="mc-bar-row"><div class="mc-bar-lbl">Team Score</div><div class="mc-bar-track"><div class="mc-bar-fill" style="width:88%;background:var(--sage)"></div></div></div>
+        </div>
+        <div class="mc-sent-row"><div class="sent-badge sent-lead">⚡ Clear Leadership</div><div class="sent-badge sent-energy">🔆 High Energy</div></div>
+        <div class="mc-actions">
+          <button class="act-btn act-interested">✓ Interested</button>
+          <button class="act-btn act-pass">✕ Pass</button>
+          <button class="act-btn act-save">♡ Save</button>
+        </div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════╗
+       ║  VIDEO QUIZ          ║
+       ╚══════════════════════╝ -->
+  <div class="screen" id="s-quiz" style="background:#050505;">
+    <div class="hdr" style="background:#050505;border-color:#111;">
+      <div class="hdr-top">
+        <div class="logo">Cruc<span>ible</span></div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="role-badge">● REC</div>
+          <div class="hdr-avatar" style="background:linear-gradient(135deg,#1a6fa8,#00c4ff)">J</div>
+        </div>
+      </div>
+    </div>
+    <div class="quiz-sel">
+      <div class="qsel-btn active" onclick="selectQuiz(this,'p1')">Prompt 1 · Fire Escape</div>
+      <div class="qsel-btn" onclick="selectQuiz(this,'p2')">Prompt 2 · Tai-Chi Japan</div>
+      <div class="qsel-btn" onclick="selectQuiz(this,'custom')">+ Custom</div>
+    </div>
+    <div class="quiz-prompt-block">
+      <div class="qpb-bg">🔥</div>
+      <div class="qpb-tag"><div class="live-dot" style="display:inline-block;vertical-align:middle;"></div>&nbsp; Active Scenario</div>
+      <div class="qpb-title" id="quiz-prompt-text">"Your team is on the 48th floor of the Santander Building, Downtown Dallas. Floors 20–30 are on fire. How do you get out?"</div>
+      <div class="qpb-meta"><div class="qpb-template">Template · Prompt 1</div><div class="qpb-timer">05:00 max</div></div>
+    </div>
+    <div class="sa">
+      <div class="cam-grid">
+        <div class="cam speaking" id="cam-j"><div class="cam-live">● Live</div><div class="cam-av" style="background:linear-gradient(135deg,#e5431a,#c8a44a)">J</div><div class="cam-name">Jake · CEO</div><div class="cam-mic">🎙</div></div>
+        <div class="cam" id="cam-a"><div class="cam-live" style="background:#1a1a1a;color:#444">● Live</div><div class="cam-av" style="background:linear-gradient(135deg,#1a6fa8,#00c4ff)">A</div><div class="cam-name">Aya · CTO</div><div class="cam-mic" style="opacity:.15">🎙</div></div>
+        <div class="cam cam-add"><div class="cam-add-icon">＋</div><div class="cam-add-lbl">Add Member</div></div>
+        <div class="cam" style="border-style:dashed;border-color:#161616;opacity:.3;"><div class="cam-add-icon">👤</div><div class="cam-add-lbl">Empty Seat</div></div>
+      </div>
+      <div class="rec-section">
+        <div class="rec-track"><div class="rec-fill" id="rec-fill"></div></div>
+        <div class="rec-times"><div class="rec-el" id="rec-el">2:06</div><div class="rec-mx">5:00 max</div></div>
+      </div>
+      <div class="rec-controls">
+        <div class="ctrl">🔇</div>
+        <button class="rec-stop" id="rec-btn">⏹</button>
+        <div class="ctrl">📷</div>
+      </div>
+      <div class="submit-wrap"><button class="submit-btn">Submit to Feed →</button></div>
+      <div class="sec">// Coaching Tips</div>
+      <div class="tips-row">
+        <div class="tip"><div class="tip-icon">💡</div><div class="tip-txt">Let all members speak — VCs look for collaboration, not just the CEO.</div></div>
+        <div class="tip"><div class="tip-icon">📍</div><div class="tip-txt">Use location details. Noticing specifics signals strategic thinking.</div></div>
+        <div class="tip"><div class="tip-icon">🧊</div><div class="tip-txt">Stay calm. Panic is a red flag. Calm urgency signals strong leadership.</div></div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════╗
+       ║  FOUNDER VIEW        ║
+       ╚══════════════════════╝ -->
+  <div class="screen" id="s-founder">
+    <div class="hdr"><div class="hdr-top"><div class="logo">Cruc<span>ible</span></div><div style="display:flex;align-items:center;gap:9px;"><div class="role-badge" style="color:var(--sky);background:var(--sky2);border-color:rgba(26,111,168,.2)">Founder</div><div class="hdr-avatar" style="background:linear-gradient(135deg,#1a6fa8,#00c4ff)">J</div></div></div></div>
+    <div class="founder-stats">
+      <div class="fst"><div class="fst-num" style="color:var(--ember)">4</div><div class="fst-lbl">Videos</div></div>
+      <div class="fst"><div class="fst-num" style="color:var(--gold)">12</div><div class="fst-lbl">VC Views</div></div>
+      <div class="fst"><div class="fst-num" style="color:var(--sky)">3</div><div class="fst-lbl">Saved</div></div>
+      <div class="fst"><div class="fst-num" style="color:var(--sage)">2</div><div class="fst-lbl">Intros</div></div>
+    </div>
+    <div class="chip-row"><div class="chip active">Browse VCs</div><div class="chip">My Videos</div><div class="chip">Saved</div><div class="chip">Intros</div></div>
+    <div class="sa">
+      <div class="sec">// My Submissions</div>
+      <div class="hscroll" style="margin-bottom:14px;">
+        <div class="sub-thumb"><div class="st-vid" style="background:linear-gradient(135deg,#1a0800,#e5431a)"><div class="st-play">▶</div><div class="st-dur">2:47</div></div><div class="st-body"><div class="st-views">👁 1.2k · 3 saves</div><div class="st-lbl">Fire Escape</div></div></div>
+        <div class="sub-thumb"><div class="st-vid" style="background:linear-gradient(135deg,#001520,#1a6fa8)"><div class="st-play">▶</div><div class="st-dur">1:55</div></div><div class="st-body"><div class="st-views">👁 890 · 1 save</div><div class="st-lbl">Tai-Chi Japan</div></div></div>
+        <div class="sub-thumb sub-add" onclick="switchScreen('quiz')"><div class="sub-add-icon">＋</div><div class="sub-add-lbl">New Video</div></div>
+      </div>
+      <div class="sec">// Investor Matches</div>
+      <div class="vcpc">
+        <div class="vcpc-top"><div class="vc-av vca1">A</div><div class="vcpc-info"><div class="vcpc-name">Alex Rivera</div><div class="vcpc-firm">Partner · Benchmark Capital</div><div class="vcpc-check">$500K – $3M · Seed</div></div><div class="vcpc-thesis"><span style="font-size:16px">▶</span><div class="vcpc-thesis-lbl">Thesis<br/>Video</div></div></div>
+        <div class="vcpc-body">
+          <div class="vcpc-bio">Focuses on operational resilience. Evaluates how founders communicate under real pressure. Wrote first checks into 3 unicorns.</div>
+          <div class="vcpc-filters"><span class="vcpc-filter">B2B SaaS</span><span class="vcpc-filter">AI Infra</span><span class="vcpc-filter">Seed</span></div>
+          <div class="match-bar-row"><div class="mbl">Thesis</div><div class="mbt"><div class="mbf" style="width:96%"></div></div><span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--ember);width:26px;text-align:right">96%</span></div>
+          <div class="match-bar-row"><div class="mbl">Stage</div><div class="mbt"><div class="mbf" style="width:88%"></div></div><span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--ember);width:26px;text-align:right">88%</span></div>
+          <div class="match-bar-row"><div class="mbl">Sector</div><div class="mbt"><div class="mbf" style="width:94%"></div></div><span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--ember);width:26px;text-align:right">94%</span></div>
+        </div>
+        <div class="vcpc-footer"><button class="btn-save">♡ Save</button><button class="btn-connect">Request Intro →</button></div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════╗
+       ║  MESSAGING           ║
+       ╚══════════════════════╝ -->
+  <div class="screen" id="s-msg">
+    <div class="hdr"><div class="hdr-top"><div class="logo">Cruc<span>ible</span></div><div style="display:flex;align-items:center;gap:9px;"><div class="role-badge">Inbox</div><div class="hdr-avatar">M</div></div></div></div>
+    <div class="sa">
+      <div class="sec">// Active Conversations</div>
+      <div class="msg-item"><div class="msg-av" style="background:linear-gradient(135deg,#e5431a,#c8a44a)">J</div><div class="msg-content"><div class="msg-top"><div class="msg-name">Jake Torres · Vanta AI</div><div class="msg-time">2m ago</div></div><div class="msg-preview">Thanks for the interest! Happy to schedule a call...</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;"><div class="msg-status-pill st-interested">Interested</div><div class="msg-unread"></div></div></div>
+      <div class="msg-item"><div class="msg-av" style="background:linear-gradient(135deg,#5a8a6a,#2d7b2d)">L</div><div class="msg-content"><div class="msg-top"><div class="msg-name">Lena Park · GreenShift</div><div class="msg-time">1h ago</div></div><div class="msg-preview">We just submitted our Tai-Chi response, would love feedback.</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;"><div class="msg-status-pill st-saved">Saved</div></div></div>
+      <div class="spacer"></div>
+    </div>
+  </div>
+
+  <!-- VIDEO DETAIL MODAL -->
+  <div class="modal-overlay" id="modal" onclick="closeModal(event)">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-video"><div class="modal-video-bg g1"></div><div class="vthumb-grain"></div><div class="modal-play-large"><div class="modal-play-c">▶</div></div><div class="modal-faces-row"><div class="modal-face fa">J</div><div class="modal-face fb">A</div><div class="modal-face fc">R</div></div></div>
+      <div class="modal-body">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;"><div class="cco-dot d1" style="width:32px;height:32px;font-size:16px;">V</div><div><div class="modal-co-name">Vanta AI</div><div class="modal-co-stage">Seed · $2.4M · San Francisco</div></div><div class="mc-score-pill score-green" style="margin-left:auto;font-size:18px;">94%</div></div>
+        <div class="modal-prompt-tag">🔥 Prompt 1 — Fire Escape · Dallas</div>
+        <div class="modal-prompt-text">"48th floor, Santander Building. Floors 20–30 completely on fire. How does your team get out?"</div>
+        <div class="sent-section-title">// Sentiment Analysis Breakdown</div>
+        <div class="sent-breakdown">
+          <div class="sb-row"><div class="sb-top"><div class="sb-label">Strong Communication</div><div class="sb-score score-high">91</div></div><div class="sb-bar-track"><div class="sb-bar-fill fill-high" style="width:91%"></div></div><div class="sb-desc">Team articulated their plan clearly under time pressure. All members contributed.</div></div>
+          <div class="sb-row"><div class="sb-top"><div class="sb-label">Clear Leadership</div><div class="sb-score score-high">88</div></div><div class="sb-bar-track"><div class="sb-bar-fill fill-high" style="width:88%"></div></div><div class="sb-desc">CEO led decisively without overriding team input. Decision structure was visible.</div></div>
+          <div class="sb-row"><div class="sb-top"><div class="sb-label">High Energy</div><div class="sb-score score-high">94</div></div><div class="sb-bar-track"><div class="sb-bar-fill fill-high" style="width:94%"></div></div><div class="sb-desc">Team displayed urgency without panic. Tone was energized throughout.</div></div>
+          <div class="sb-row"><div class="sb-top"><div class="sb-label">Strategic Thinking</div><div class="sb-score score-med">74</div></div><div class="sb-bar-track"><div class="sb-bar-fill fill-med" style="width:74%"></div></div><div class="sb-desc">Team utilized the building location (Santander, Dallas) — strong contextual signal.</div></div>
+        </div>
+        <div class="modal-match-block"><div class="mmb-top"><div class="mmb-title">// Match Score For You</div><div class="mmb-score">94%</div></div><div class="mmb-bar-row"><div class="mmb-lbl">Thesis Fit</div><div class="mmb-track"><div class="mmb-fill" style="width:96%"></div></div></div><div class="mmb-bar-row"><div class="mmb-lbl">Stage</div><div class="mmb-track"><div class="mmb-fill" style="width:92%"></div></div></div><div class="mmb-bar-row"><div class="mmb-lbl">Sector</div><div class="mmb-track"><div class="mmb-fill" style="width:98%"></div></div></div><div class="mmb-bar-row"><div class="mmb-lbl">Team Score</div><div class="mmb-track"><div class="mmb-fill" style="width:88%"></div></div></div></div>
+        <div class="modal-actions"><button class="modal-act ma-int" onclick="closeModal()">✓ Interested</button><button class="modal-act ma-pass" onclick="closeModal()">✕ Pass</button><button class="modal-act ma-save" onclick="closeModal()">♡ Save</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bnav" id="bnav" style="display:none;">
+    <div class="ni" id="ni-feed" onclick="switchScreen('feed')"><div class="ni-icon">▶</div><div class="ni-label">Feed</div></div>
+    <div class="ni" id="ni-dash" onclick="switchScreen('dash')"><div class="ni-icon">📊</div><div class="ni-label">Matches</div></div>
+    <div class="ni" id="ni-quiz" onclick="switchScreen('quiz')"><div class="ni-icon">🎬</div><div class="ni-label">Record</div></div>
+    <div class="ni" id="ni-msg" onclick="switchScreen('msg')"><div class="ni-icon">💬</div><div class="ni-label">Inbox</div><div class="ni-badge on"></div></div>
+    <div class="ni" id="ni-profile" onclick="switchScreen('founder')"><div class="ni-icon">👤</div><div class="ni-label">Profile</div></div>
+  </nav>
+</div>
+
+<script>
+// ── State ──
+let selectedRole = 'founder';
+let founderStepNum = 1;
+let investorStepNum = 1;
+const F_TOTAL = 3, I_TOTAL = 3;
+
+const fStepLabels = ['Step 1 of 3 — Startup Basics','Step 2 of 3 — Team & Details','Step 3 of 3 — Value-Add & Review'];
+const iStepLabels = ['Step 1 of 3 — Stage & Check Size','Step 2 of 3 — Sector & Filters','Step 3 of 3 — Investment Thesis'];
+
+// ── Role Select ──
+function selectRole(r) {
+  selectedRole = r;
+  document.querySelectorAll('.ob-role').forEach(el => el.classList.remove('sel'));
+  document.getElementById('role-' + r).classList.add('sel');
+}
+
+// ── Begin onboarding ──
+function startOnboarding() {
+  hide('s-onboard');
+  if (selectedRole === 'founder') {
+    show('s-ob-founder');
+    updateFounderProgress();
+  } else {
+    show('s-ob-investor');
+    updateInvestorProgress();
+  }
+}
+
+// ── Founder Steps ──
+function founderStep(dir) {
+  const prev = founderStepNum;
+  if (dir === 'next') {
+    if (founderStepNum === F_TOTAL) { finishOnboarding(); return; }
+    founderStepNum++;
+  } else {
+    if (founderStepNum === 1) return;
+    founderStepNum--;
+  }
+  animateStep('f', prev, founderStepNum, dir === 'next');
+  updateFounderProgress();
+}
+
+function updateFounderProgress() {
+  const pct = (founderStepNum / F_TOTAL) * 100;
+  document.getElementById('f-prog-fill').style.width = pct + '%';
+  document.getElementById('f-prog-label').textContent = fStepLabels[founderStepNum - 1];
+  document.getElementById('f-prog-step').textContent = founderStepNum + ' / ' + F_TOTAL;
+  const backBtn = document.getElementById('f-back-btn');
+  backBtn.style.opacity = founderStepNum === 1 ? '0.3' : '1';
+  backBtn.style.pointerEvents = founderStepNum === 1 ? 'none' : 'auto';
+  const nextBtn = document.getElementById('f-next-btn');
+  nextBtn.textContent = founderStepNum === F_TOTAL ? 'Complete Profile →' : 'Next →';
+}
+
+// ── Investor Steps ──
+function investorStep(dir) {
+  const prev = investorStepNum;
+  if (dir === 'next') {
+    if (investorStepNum === I_TOTAL) { finishOnboarding(); return; }
+    investorStepNum++;
+  } else {
+    if (investorStepNum === 1) return;
+    investorStepNum--;
+  }
+  animateStep('i', prev, investorStepNum, dir === 'next');
+  updateInvestorProgress();
+}
+
+function updateInvestorProgress() {
+  const pct = (investorStepNum / I_TOTAL) * 100;
+  document.getElementById('i-prog-fill').style.width = pct + '%';
+  document.getElementById('i-prog-label').textContent = iStepLabels[investorStepNum - 1];
+  document.getElementById('i-prog-step').textContent = investorStepNum + ' / ' + I_TOTAL;
+  const backBtn = document.getElementById('i-back-btn');
+  backBtn.style.opacity = investorStepNum === 1 ? '0.3' : '1';
+  backBtn.style.pointerEvents = investorStepNum === 1 ? 'none' : 'auto';
+  const nextBtn = document.getElementById('i-next-btn');
+  nextBtn.textContent = investorStepNum === I_TOTAL ? 'Complete Profile →' : 'Next →';
+}
+
+// ── Slide animation ──
+function animateStep(prefix, from, to, forward) {
+  const fromEl = document.getElementById(prefix + '-step-' + from);
+  const toEl = document.getElementById(prefix + '-step-' + to);
+  fromEl.classList.remove('visible');
+  fromEl.classList.add(forward ? 'hidden-left' : 'hidden-right');
+  toEl.classList.remove(forward ? 'hidden-right' : 'hidden-left');
+  toEl.classList.add('visible');
+}
+
+// ── Finish → Enter App ──
+function finishOnboarding() {
+  hide('s-ob-founder');
+  hide('s-ob-investor');
+  document.getElementById('bnav').style.display = 'flex';
+  updateFeedRoleBadge();
+  if (selectedRole === 'founder') {
+    switchScreen('founder');
+  } else {
+    switchScreen('feed');
+  }
+}
+
+// ── Screen Nav ──
+const screenMap = { feed:'s-feed', dash:'s-dash', quiz:'s-quiz', founder:'s-founder', msg:'s-msg' };
+const navMap = { feed:'ni-feed', dash:'ni-dash', quiz:'ni-quiz', founder:'ni-profile', msg:'ni-msg' };
+
+function updateFeedRoleBadge() {
+  const el = document.getElementById('feed-role-badge');
+  if (!el) return;
+  el.textContent = selectedRole === 'founder' ? 'Founder View' : 'VC View';
+}
+
+function switchScreen(key) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  const sid = screenMap[key]; if (sid) document.getElementById(sid).classList.add('active');
+  const nid = navMap[key]; if (nid) document.getElementById(nid).classList.add('active');
+  if (key === 'feed') updateFeedRoleBadge();
+}
+
+function show(id){ const el = document.getElementById(id); el.style.display='flex'; el.classList.add('active'); }
+function hide(id){ const el = document.getElementById(id); el.classList.remove('active'); el.style.display=''; }
+
+// ── Option toggles ──
+function toggleOption(el, groupId, mode) {
+  if (mode === 'radio') {
+    document.getElementById(groupId).querySelectorAll('.ob-option').forEach(o => o.classList.remove('sel'));
+    el.classList.add('sel');
+  } else {
+    el.classList.toggle('sel');
+  }
+}
+
+// ── Stage select ──
+function stageSelect(el, hiddenId, val) {
+  el.closest('.stage-grid').querySelectorAll('.stage-btn').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById(hiddenId).value = val;
+}
+
+// ── Toggle switches ──
+function toggleSwitch(rowId) {
+  const sw = document.getElementById('sw-' + rowId.replace('tog-',''));
+  sw.classList.toggle('on');
+}
+
+// ── Check size slider ──
+const checkLabels = ['$25K','$50K','$100K','$250K','$500K','$1M','$3M+'];
+function updateCheckSize(val) {
+  document.getElementById('i-check-val').textContent = checkLabels[val];
+  const pct = (val / 6) * 100;
+  document.getElementById('i-check-slider').style.background =
+    `linear-gradient(to right, var(--ember) 0%, var(--ember) ${pct}%, var(--border2) ${pct}%, var(--border2) 100%)`;
+}
+
+// ── Thesis char count ──
+function updateCharCount(el) {
+  document.getElementById('i-char').textContent = el.value.length + ' / 400';
+}
+
+// ── Chip toggle ──
+document.querySelectorAll('.chip-row').forEach(row => {
+  row.querySelectorAll('.chip').forEach(c => {
+    c.addEventListener('click', () => {
+      row.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+    });
+  });
+});
+
+// ── Action buttons ──
+function actOn(btn, type) {
+  const card = btn.closest('.cactions');
+  const btns = card.querySelectorAll('.act-btn');
+  btns.forEach(b => { b.style.opacity='0.4'; b.disabled=true; });
+  btn.style.opacity='1'; btn.disabled=false;
+  if (type==='interested') btn.textContent='✓ Interested!';
+  if (type==='save') btn.textContent='♡ Saved!';
+  if (type==='pass') btn.textContent='✕ Passed';
+}
+
+// ── Modal ──
+function openModal() { document.getElementById('modal').classList.add('open'); }
+function closeModal(e) { if(!e||e.target===document.getElementById('modal')) document.getElementById('modal').classList.remove('open'); }
+
+// ── Quiz prompts ──
+const quizPrompts = {
+  p1: '"Your team is on the 48th floor of the Santander Building, Downtown Dallas. Floors 20–30 are on fire. How do you get out?"',
+  p2: '"Your team has landed in Japan to learn Tai-Chi and compete in NYC in 1 week. No prior experience. No contacts. How do you become experts in time?"',
+  custom: '"Write your own crisis scenario for your team to respond to together on camera."'
+};
+function selectQuiz(el, key) {
+  document.querySelectorAll('.qsel-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('quiz-prompt-text').textContent = quizPrompts[key];
+}
+
+// ── Recording timer ──
+let recSecs=126, recRunning=true;
+const fillEl=document.getElementById('rec-fill'), elEl=document.getElementById('rec-el');
+function tickRec(){
+  if(!recRunning||recSecs>=300) return;
+  recSecs++;
+  if(fillEl) fillEl.style.width=(recSecs/300*100)+'%';
+  if(elEl){ const m=Math.floor(recSecs/60),s=recSecs%60; elEl.textContent=m+':'+String(s).padStart(2,'0'); }
+  setTimeout(tickRec,1000);
+}
+setTimeout(tickRec,1000);
+const recBtn=document.getElementById('rec-btn');
+if(recBtn) recBtn.addEventListener('click',()=>{
+  recRunning=!recRunning;
+  recBtn.textContent=recRunning?'⏹':'▶';
+  recBtn.style.background=recRunning?'var(--ember)':'#2a2a2a';
+  if(recRunning) tickRec();
+});
+
+// ── Speaking animation ──
+const cams=[document.getElementById('cam-j'),document.getElementById('cam-a')];
+let spk=0;
+setInterval(()=>{ cams.forEach(c=>{if(c)c.classList.remove('speaking');}); if(cams[spk])cams[spk].classList.add('speaking'); spk=(spk+1)%2; },2800);
+</script>
+</body>
+</html>
