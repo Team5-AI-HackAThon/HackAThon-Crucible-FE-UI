@@ -81,7 +81,7 @@ export function CrucibleApp() {
           <nav className="bnav">
             <button
               type="button"
-              className={`ni${tab === "feed" ? " active" : ""}`}
+              className={`ni ni-feed${tab === "feed" ? " active" : ""}`}
               onClick={() => switchTab("feed")}
             >
               <div className="ni-icon">▶</div>
