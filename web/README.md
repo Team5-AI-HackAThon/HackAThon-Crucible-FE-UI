@@ -10,7 +10,10 @@ Interactive mobile-first prototype for the Crucible flows (role selection, onboa
 
 ## Scripts
 
+From the **`web/`** folder:
+
 ```bash
+cd web
 npm install
 npm run dev      # http://localhost:3000
 npm run build
@@ -18,13 +21,28 @@ npm run start
 npm run lint
 ```
 
+From the **repository root** (npm workspaces):
+
+```bash
+npm install
+npm run dev      # runs the web app
+npm run build
+npm run lint
+```
+
 ## Deploy on Vercel
 
-1. Push this repo to GitHub/GitLab/Bitbucket.
+The Next.js app is in **`web/`**. If Vercel builds the repo **root** without that folder as the app root, you will see **`404 NOT_FOUND`** on the deployment URL.
+
+1. Push the repository to GitHub/GitLab/Bitbucket.
 2. In [Vercel](https://vercel.com), **Import** the repository.
-3. Set **Root Directory** to `web` (this monorepo keeps the HTML reference at the repo root).
-4. Framework preset: **Next.js** (auto-detected). Build: `npm run build`, Output: `.next`.
-5. Deploy.
+3. **Project → Settings → General → Root Directory** → set to **`web`** → **Save**.
+4. **Build & Development Settings:** Framework **Next.js** (auto). Do **not** set a custom **Output Directory** for Next.js (leave default).
+5. **Redeploy** (Deployments → ⋯ → Redeploy).
+
+**If you still see 404:** confirm the latest deployment **Build** log shows `next build` succeeding and that **Root Directory** is `web`, not empty.
+
+**Alternative (repo root deploy):** the repository root has a `package.json` with **npm workspaces** so `npm install` / `npm run build` from the root can build the `web` package. You can leave Root Directory as **`.`** only if the Vercel build uses those scripts and detects Next.js; the reliable option remains **Root Directory = `web`**.
 
 Environment variables are not required for the static UI. For **Supabase** later, add:
 
