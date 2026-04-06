@@ -34,6 +34,7 @@ export function CrucibleApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthStartError, setOauthStartError] = useState<string | null>(null);
+  const [addProjectKey, setAddProjectKey] = useState(0);
 
   const loadAppState = useCallback(async (supabase: SupabaseClient, sess: Session) => {
     const user = sess.user;
@@ -162,6 +163,11 @@ export function CrucibleApp() {
 
   const switchTab = (key: Tab) => setTab(key);
 
+  const openAddProject = () => {
+    setAddProjectKey((k) => k + 1);
+    setPhase("add-project");
+  };
+
   const user = session?.user;
   const displayEmail = user?.email ?? "";
   const firstName = getFirstNameFromUser(user ?? undefined);
@@ -196,6 +202,19 @@ export function CrucibleApp() {
         <FounderOnboarding userId={session.user.id} onSkip={handleSkipOnboarding} onComplete={handleOnboardingComplete} />
       )}
 
+      {phase === "add-project" && session && (
+        <FounderOnboarding
+          key={addProjectKey}
+          variant="addProject"
+          userId={session.user.id}
+          onSkip={() => {
+            setPhase("app");
+            setTab("founder");
+          }}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
+
       {phase === "onboard-investor" && session && (
         <InvestorOnboarding userId={session.user.id} onSkip={handleSkipOnboarding} onComplete={handleOnboardingComplete} />
       )}
@@ -225,6 +244,7 @@ export function CrucibleApp() {
               firstName={firstName}
               avatarLabel={avatarLetter}
               profileRoleLabel={role === "founder" ? "Founder" : "Investor"}
+              onAddProject={role === "founder" ? openAddProject : undefined}
             />
           </div>
 

@@ -5,4 +5,5 @@ export type Phase =
   | "role"
   | "onboard-founder"
   | "onboard-investor"
+  | "add-project"
   | "app";

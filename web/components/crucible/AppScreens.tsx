@@ -277,12 +277,15 @@ export function ProfileScreen({
   firstName,
   avatarLabel = "J",
   profileRoleLabel = "Founder",
+  onAddProject,
 }: {
   onNewVideo: () => void;
   onSignOut?: () => void;
   firstName: string;
   avatarLabel?: string;
   profileRoleLabel?: string;
+  /** Founders only: open add-project flow */
+  onAddProject?: () => void;
 }) {
   const [chip, setChip] = useState(0);
   return (
@@ -307,6 +310,13 @@ export function ProfileScreen({
           </>
         }
       />
+      {onAddProject && (
+        <div className="profile-add-project-row">
+          <button type="button" className="profile-add-project-btn" onClick={onAddProject}>
+            +Project
+          </button>
+        </div>
+      )}
       <div className="founder-stats">
         <div className="fst">
           <div className="fst-num" style={{ color: "var(--ember)" }}>

@@ -109,9 +109,11 @@ type FounderProps = {
   userId: string;
   onSkip: () => void;
   onComplete: () => void;
+  /** Extra project from Profile vs first-time onboarding */
+  variant?: "onboarding" | "addProject";
 };
 
-export function FounderOnboarding({ userId, onSkip, onComplete }: FounderProps) {
+export function FounderOnboarding({ userId, onSkip, onComplete, variant = "onboarding" }: FounderProps) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [hq, setHq] = useState("");
@@ -200,11 +202,26 @@ export function FounderOnboarding({ userId, onSkip, onComplete }: FounderProps) 
   return (
     <div className="screen active" id="s-ob-founder">
       <div className="ob-step-hdr">
-        <div className="ob-step-logo">
-          Cruc<span>ible</span>
+        <div>
+          <div className="ob-step-logo">
+            Cruc<span>ible</span>
+          </div>
+          {variant === "addProject" && (
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--muted)",
+                marginTop: 6,
+                fontFamily: "var(--font-dm-mono), monospace",
+                letterSpacing: "0.06em",
+              }}
+            >
+              New project
+            </div>
+          )}
         </div>
         <div className="ob-skip" onClick={onSkip} role="button">
-          Skip for now
+          {variant === "addProject" ? "Cancel" : "Skip for now"}
         </div>
       </div>
       <div className="ob-progress">
@@ -312,7 +329,13 @@ export function FounderOnboarding({ userId, onSkip, onComplete }: FounderProps) 
             else void complete();
           }}
         >
-          {step >= 2 ? (saving ? "Saving…" : "Complete Profile →") : "Next →"}
+          {step >= 2
+            ? saving
+              ? "Saving…"
+              : variant === "addProject"
+                ? "Save project →"
+                : "Complete Profile →"
+            : "Next →"}
         </button>
       </div>
     </div>

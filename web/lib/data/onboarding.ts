@@ -16,6 +16,8 @@ export async function fetchFounderProject(supabase: SupabaseClient, founderId: s
     .from("projects")
     .select("id,name,hq_city,one_line_pitch")
     .eq("founder_id", founderId)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   return data;
 }
