@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { getFirstNameFromUser } from "@/lib/auth/displayName";
 import { setPendingRole, syncProfileRoleAfterOAuth } from "@/lib/auth/profile";
 import { fetchFounderProject, founderNeedsOnboarding } from "@/lib/data/onboarding";
 import {
@@ -163,11 +164,12 @@ export function CrucibleApp() {
 
   const user = session?.user;
   const displayEmail = user?.email ?? "";
+  const firstName = getFirstNameFromUser(user ?? undefined);
   const avatarLetter =
-    displayEmail.length > 0
-      ? displayEmail[0].toUpperCase()
-      : typeof user?.user_metadata?.name === "string" && user.user_metadata.name.length > 0
-        ? user.user_metadata.name[0].toUpperCase()
+    firstName !== "there" && firstName
+      ? firstName.charAt(0).toUpperCase()
+      : displayEmail.length > 0
+        ? displayEmail[0].toUpperCase()
         : "?";
 
   return (
@@ -209,28 +211,29 @@ export function CrucibleApp() {
       {phase === "app" && (
         <>
           <div className={`screen${tab === "feed" ? " active" : ""}`}>
-            <FeedScreen role={role} onOpenModal={() => setModalOpen(true)} />
+            <FeedScreen role={role} firstName={firstName} onOpenModal={() => setModalOpen(true)} />
           </div>
 
           <div className={`screen${tab === "dash" ? " active" : ""}`}>
-            <MatchesScreen />
+            <MatchesScreen firstName={firstName} />
           </div>
 
           <div className={`screen${tab === "quiz" ? " active" : ""}`}>
-            <RecordScreen onGoProfile={() => switchTab("founder")} />
+            <RecordScreen onGoProfile={() => switchTab("founder")} firstName={firstName} />
           </div>
 
           <div className={`screen${tab === "founder" ? " active" : ""}`}>
             <ProfileScreen
               onNewVideo={() => switchTab("quiz")}
               onSignOut={handleSignOut}
+              firstName={firstName}
               avatarLabel={avatarLetter}
               profileRoleLabel={role === "founder" ? "Founder" : "Investor"}
             />
           </div>
 
           <div className={`screen${tab === "msg" ? " active" : ""}`}>
-            <InboxScreen />
+            <InboxScreen firstName={firstName} />
           </div>
 
           <nav className="bnav">

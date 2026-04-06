@@ -1,33 +1,55 @@
 "use client";
 
 import type { Role } from "./types";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 const FEED_CHIPS = ["All", "🔥 Trending", "Seed", "AI / ML", "Climate"] as const;
 const FOUNDER_CHIPS = ["Browse VCs", "My Videos", "Saved", "Intros"] as const;
 
+export function AppScreenHeader({
+  firstName,
+  rightSlot,
+  hdrStyle,
+}: {
+  firstName: string;
+  rightSlot: ReactNode;
+  hdrStyle?: CSSProperties;
+}) {
+  return (
+    <div className="hdr" style={hdrStyle}>
+      <div className="hdr-greet">Hello {firstName}</div>
+      <div className="hdr-top">
+        <div className="logo">
+          Cruc<span>ible</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>{rightSlot}</div>
+      </div>
+    </div>
+  );
+}
+
 type FeedProps = {
   role: Role;
   onOpenModal: () => void;
+  firstName: string;
 };
 
-export function FeedScreen({ role, onOpenModal }: FeedProps) {
+export function FeedScreen({ role, onOpenModal, firstName }: FeedProps) {
   const [chip, setChip] = useState(0);
   const badge = role === "founder" ? "Founder View" : "VC View";
+  const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
 
   return (
     <>
-      <div className="hdr">
-        <div className="hdr-top">
-          <div className="logo">
-            Cruc<span>ible</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <AppScreenHeader
+        firstName={firstName}
+        rightSlot={
+          <>
             <div className="role-badge">{badge}</div>
-            <div className="hdr-avatar">M</div>
-          </div>
-        </div>
-      </div>
+            <div className="hdr-avatar">{av}</div>
+          </>
+        }
+      />
       <div className="chip-row">
         {FEED_CHIPS.map((c, i) => (
           <div
@@ -155,20 +177,19 @@ function FeedCard({
   );
 }
 
-export function MatchesScreen() {
+export function MatchesScreen({ firstName }: { firstName: string }) {
+  const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
   return (
     <>
-      <div className="hdr">
-        <div className="hdr-top">
-          <div className="logo">
-            Cruc<span>ible</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <AppScreenHeader
+        firstName={firstName}
+        rightSlot={
+          <>
             <div className="role-badge">Matches</div>
-            <div className="hdr-avatar">M</div>
-          </div>
-        </div>
-      </div>
+            <div className="hdr-avatar">{av}</div>
+          </>
+        }
+      />
       <div className="sa">
         <div className="dash-hero">
           <div className="dash-hero-bg" />
@@ -274,13 +295,14 @@ const QUIZ_PROMPTS: Record<string, string> = {
   custom: '"Write your own crisis scenario for your team to respond to together on camera."',
 };
 
-export function RecordScreen({ onGoProfile }: { onGoProfile: () => void }) {
+export function RecordScreen({ onGoProfile, firstName }: { onGoProfile: () => void; firstName: string }) {
   const [quizKey, setQuizKey] = useState<keyof typeof QUIZ_PROMPTS>("p1");
   const [recording, setRecording] = useState(true);
   const [secs, setSecs] = useState(126);
 
   const promptText = QUIZ_PROMPTS[quizKey];
   const fillPct = Math.min(100, (secs / 300) * 100);
+  const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
 
   useEffect(() => {
     if (!recording) return;
@@ -292,22 +314,18 @@ export function RecordScreen({ onGoProfile }: { onGoProfile: () => void }) {
 
   return (
     <div style={{ background: "#050505", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <div className="hdr" style={{ background: "#050505", borderColor: "#111" }}>
-        <div className="hdr-top">
-          <div className="logo">
-            Cruc<span>ible</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <AppScreenHeader
+        firstName={firstName}
+        hdrStyle={{ background: "#050505", borderColor: "#111" }}
+        rightSlot={
+          <>
             <div className="role-badge">● REC</div>
-            <div
-              className="hdr-avatar"
-              style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}
-            >
-              J
+            <div className="hdr-avatar" style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}>
+              {av}
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="quiz-sel">
         {(["p1", "p2", "custom"] as const).map((k) => (
           <div
@@ -413,23 +431,23 @@ export function RecordScreen({ onGoProfile }: { onGoProfile: () => void }) {
 export function ProfileScreen({
   onNewVideo,
   onSignOut,
+  firstName,
   avatarLabel = "J",
   profileRoleLabel = "Founder",
 }: {
   onNewVideo: () => void;
   onSignOut?: () => void;
+  firstName: string;
   avatarLabel?: string;
   profileRoleLabel?: string;
 }) {
   const [chip, setChip] = useState(0);
   return (
     <>
-      <div className="hdr">
-        <div className="hdr-top">
-          <div className="logo">
-            Cruc<span>ible</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <AppScreenHeader
+        firstName={firstName}
+        rightSlot={
+          <>
             <div
               className="role-badge"
               style={{
@@ -440,15 +458,12 @@ export function ProfileScreen({
             >
               {profileRoleLabel}
             </div>
-            <div
-              className="hdr-avatar"
-              style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}
-            >
+            <div className="hdr-avatar" style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}>
               {avatarLabel}
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="founder-stats">
         <div className="fst">
           <div className="fst-num" style={{ color: "var(--ember)" }}>
@@ -587,20 +602,19 @@ export function ProfileScreen({
   );
 }
 
-export function InboxScreen() {
+export function InboxScreen({ firstName }: { firstName: string }) {
+  const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
   return (
     <>
-      <div className="hdr">
-        <div className="hdr-top">
-          <div className="logo">
-            Cruc<span>ible</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <AppScreenHeader
+        firstName={firstName}
+        rightSlot={
+          <>
             <div className="role-badge">Inbox</div>
-            <div className="hdr-avatar">M</div>
-          </div>
-        </div>
-      </div>
+            <div className="hdr-avatar">{av}</div>
+          </>
+        }
+      />
       <div className="sa">
         <div className="sec">{"// Active Conversations"}</div>
         <div className="msg-item">

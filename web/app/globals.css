@@ -107,6 +107,7 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
 
 /* ── SHARED HEADER ── */
 .hdr{background:var(--ink);padding:13px 20px 11px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.hdr-greet{font-size:13px;color:var(--muted);margin-bottom:8px;letter-spacing:0.02em;font-family:var(--font-dm-sans),system-ui,sans-serif;}
 .hdr-top{display:flex;align-items:center;justify-content:space-between;}
 .logo{font-family:var(--font-cormorant), serif;font-size:24px;color:var(--paper);letter-spacing:.02em;font-style:italic;}
 .logo span{color:var(--ember);font-style:normal;}
