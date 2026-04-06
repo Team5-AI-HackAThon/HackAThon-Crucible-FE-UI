@@ -42,6 +42,18 @@ function quizSlugLabel(slug: string | null): string {
   return slug;
 }
 
+function useMatchMedia(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
 function MediaThumb({
   item,
   onOpen,
@@ -337,6 +349,16 @@ export function RecordScreen({
   const canRecord = stream && !isRecording && !recordedBlob;
   const showLive = stream && !recordedBlob;
   const cameraOffPlaceholder = !stream && !recordedBlob;
+  const isMobileViewport = useMatchMedia("(max-width: 768px)");
+
+  const recordShellClass = [
+    "record-video-shell",
+    cameraOffPlaceholder
+      ? "record-video-shell--idle"
+      : isMobileViewport
+        ? "record-video-shell--live-mobile"
+        : "record-video-shell--live-desktop",
+  ].join(" ");
 
   return (
     <div style={{ background: "#050505", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -406,15 +428,11 @@ export function RecordScreen({
         )}
 
         <div
-          className="record-video-shell"
+          className={recordShellClass}
           style={{
             borderRadius: 12,
             overflow: "hidden",
             background: "#111",
-            marginBottom: cameraOffPlaceholder ? 10 : 14,
-            aspectRatio: cameraOffPlaceholder ? "16 / 5" : "16 / 10",
-            maxHeight: cameraOffPlaceholder ? 112 : 280,
-            minHeight: cameraOffPlaceholder ? 72 : undefined,
             position: "relative",
           }}
         >
@@ -423,17 +441,15 @@ export function RecordScreen({
               src={previewUrl}
               controls
               playsInline
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              className="record-preview-video"
             />
           ) : (
             <video
               ref={liveVideoRef}
               playsInline
               muted
+              className="record-live-video"
               style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
                 display: showLive ? "block" : "none",
               }}
             />

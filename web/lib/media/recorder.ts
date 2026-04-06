@@ -12,8 +12,16 @@ export function pickRecorderMimeType(): string | undefined {
 }
 
 export async function getCameraStream(): Promise<MediaStream> {
+  const mobile =
+    typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
+
+  // Mobile: portrait-friendly ideals; desktop: landscape HD. Display still uses CSS (contain vs cover).
+  const videoConstraints: MediaTrackConstraints = mobile
+    ? { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } }
+    : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
+
   return navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+    video: videoConstraints,
     audio: true,
   });
 }
