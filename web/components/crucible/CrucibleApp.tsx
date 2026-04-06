@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { setPendingRole, syncProfileRoleAfterOAuth } from "@/lib/auth/profile";
+import { fetchFounderProject, founderNeedsOnboarding } from "@/lib/data/onboarding";
 import {
   FeedScreen,
   InboxScreen,
@@ -12,23 +17,158 @@ import { FounderOnboarding, InvestorOnboarding, RoleSelectScreen } from "./Onboa
 import type { Phase, Role, Tab } from "./types";
 import { VideoModal } from "./VideoModal";
 
+function supabaseEnvConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
 export function CrucibleApp() {
-  const [phase, setPhase] = useState<Phase>("role");
+  const searchParams = useSearchParams();
+  const authError = searchParams.get("auth_error") === "1";
+  const envMissing = !supabaseEnvConfigured();
+
+  const [phase, setPhase] = useState<Phase>(() => (envMissing ? "role" : "loading"));
   const [role, setRole] = useState<Role>("founder");
   const [tab, setTab] = useState<Tab>("feed");
   const [modalOpen, setModalOpen] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [oauthStartError, setOauthStartError] = useState<string | null>(null);
 
-  const finishOnboarding = () => {
+  const loadAppState = useCallback(async (supabase: SupabaseClient, sess: Session) => {
+    const user = sess.user;
+    const metaName =
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : typeof user.user_metadata?.name === "string"
+          ? user.user_metadata.name
+          : null;
+    const avatar =
+      typeof user.user_metadata?.avatar_url === "string"
+        ? user.user_metadata.avatar_url
+        : typeof user.user_metadata?.picture === "string"
+          ? user.user_metadata.picture
+          : null;
+
+    await syncProfileRoleAfterOAuth(supabase, user.id, user.email ?? undefined, metaName, avatar);
+
+    const { data: profile } = await supabase.from("profiles").select("id,role").eq("id", user.id).maybeSingle();
+
+    if (!profile) {
+      setPhase("role");
+      setSession(null);
+      return;
+    }
+
+    if (profile.role === "founder") {
+      const proj = await fetchFounderProject(supabase, user.id);
+      if (founderNeedsOnboarding(proj)) {
+        setPhase("onboard-founder");
+        setRole("founder");
+        setSession(sess);
+        return;
+      }
+    } else {
+      const { data: vc } = await supabase
+        .from("vc_profiles")
+        .select("investment_thesis")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!vc?.investment_thesis?.trim()) {
+        setPhase("onboard-investor");
+        setRole("vc");
+        setSession(sess);
+        return;
+      }
+    }
+
+    setRole(profile.role === "investor" ? "vc" : "founder");
+    setSession(sess);
+    setPhase("app");
+    setTab(profile.role === "founder" ? "founder" : "feed");
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "TOKEN_REFRESHED") return;
+      if (!nextSession) {
+        setPhase("role");
+        setSession(null);
+        return;
+      }
+      void loadAppState(supabase, nextSession);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [loadAppState]);
+
+  const signInWithGoogle = async () => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+    setPendingRole(role);
+    setOauthStartError(null);
+    setOauthBusy(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: "openid email profile",
+        queryParams: {
+          access_type: "offline",
+          prompt: "select_account",
+        },
+      },
+    });
+    if (error) {
+      console.error(error);
+      setOauthStartError(error.message);
+      setOauthBusy(false);
+      return;
+    }
+    // Success: full-page redirect to Google; leave oauthBusy true until unload.
+  };
+
+  const handleOnboardingComplete = async () => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase) {
+      setPhase("app");
+      if (role === "founder") setTab("founder");
+      else setTab("feed");
+      return;
+    }
+    const {
+      data: { session: next },
+    } = await supabase.auth.getSession();
+    if (next) await loadAppState(supabase, next);
+  };
+
+  const handleSkipOnboarding = () => {
     setPhase("app");
     if (role === "founder") setTab("founder");
     else setTab("feed");
   };
 
-  const startOnboarding = () => {
-    setPhase(role === "founder" ? "onboard-founder" : "onboard-investor");
+  const handleSignOut = async () => {
+    const supabase = getSupabaseBrowser();
+    if (supabase) await supabase.auth.signOut();
+    setPhase("role");
+    setSession(null);
   };
 
   const switchTab = (key: Tab) => setTab(key);
+
+  const user = session?.user;
+  const displayEmail = user?.email ?? "";
+  const avatarLetter =
+    displayEmail.length > 0
+      ? displayEmail[0].toUpperCase()
+      : typeof user?.user_metadata?.name === "string" && user.user_metadata.name.length > 0
+        ? user.user_metadata.name[0].toUpperCase()
+        : "?";
 
   return (
     <div className="shell">
@@ -40,20 +180,30 @@ export function CrucibleApp() {
         </div>
       </div>
 
+      {phase === "loading" && (
+        <div className="screen active" style={{ justifyContent: "center", alignItems: "center" }}>
+          <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>
+        </div>
+      )}
+
       {phase === "role" && (
         <RoleSelectScreen
           selected={role}
           onSelect={setRole}
-          onContinue={startOnboarding}
+          onContinueWithGoogle={signInWithGoogle}
+          envMissing={envMissing}
+          authError={authError}
+          oauthBusy={oauthBusy}
+          oauthStartError={oauthStartError}
         />
       )}
 
-      {phase === "onboard-founder" && (
-        <FounderOnboarding onSkip={finishOnboarding} onComplete={finishOnboarding} />
+      {phase === "onboard-founder" && session && (
+        <FounderOnboarding userId={session.user.id} onSkip={handleSkipOnboarding} onComplete={handleOnboardingComplete} />
       )}
 
-      {phase === "onboard-investor" && (
-        <InvestorOnboarding onSkip={finishOnboarding} onComplete={finishOnboarding} />
+      {phase === "onboard-investor" && session && (
+        <InvestorOnboarding userId={session.user.id} onSkip={handleSkipOnboarding} onComplete={handleOnboardingComplete} />
       )}
 
       {phase === "app" && (
@@ -71,7 +221,12 @@ export function CrucibleApp() {
           </div>
 
           <div className={`screen${tab === "founder" ? " active" : ""}`}>
-            <ProfileScreen onNewVideo={() => switchTab("quiz")} />
+            <ProfileScreen
+              onNewVideo={() => switchTab("quiz")}
+              onSignOut={handleSignOut}
+              avatarLabel={avatarLetter}
+              profileRoleLabel={role === "founder" ? "Founder" : "Investor"}
+            />
           </div>
 
           <div className={`screen${tab === "msg" ? " active" : ""}`}>

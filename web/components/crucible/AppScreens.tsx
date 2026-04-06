@@ -410,7 +410,17 @@ export function RecordScreen({ onGoProfile }: { onGoProfile: () => void }) {
   );
 }
 
-export function ProfileScreen({ onNewVideo }: { onNewVideo: () => void }) {
+export function ProfileScreen({
+  onNewVideo,
+  onSignOut,
+  avatarLabel = "J",
+  profileRoleLabel = "Founder",
+}: {
+  onNewVideo: () => void;
+  onSignOut?: () => void;
+  avatarLabel?: string;
+  profileRoleLabel?: string;
+}) {
   const [chip, setChip] = useState(0);
   return (
     <>
@@ -428,13 +438,13 @@ export function ProfileScreen({ onNewVideo }: { onNewVideo: () => void }) {
                 borderColor: "rgba(26,111,168,.2)",
               }}
             >
-              Founder
+              {profileRoleLabel}
             </div>
             <div
               className="hdr-avatar"
               style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}
             >
-              J
+              {avatarLabel}
             </div>
           </div>
         </div>
@@ -559,6 +569,18 @@ export function ProfileScreen({ onNewVideo }: { onNewVideo: () => void }) {
             </button>
           </div>
         </div>
+        {onSignOut && (
+          <div style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="ob-cta"
+              style={{ width: "100%", background: "transparent", border: "1px solid rgba(255,255,255,.12)" }}
+              onClick={() => void onSignOut()}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
         <div className="spacer" />
       </div>
     </>
