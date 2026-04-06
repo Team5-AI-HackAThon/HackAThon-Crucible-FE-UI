@@ -174,14 +174,6 @@ export function CrucibleApp() {
 
   return (
     <div className="shell">
-      <div className="sb">
-        <div className="sb-time">9:41</div>
-        <div className="sb-icons">
-          <span>📶</span>
-          <span>🔋</span>
-        </div>
-      </div>
-
       {phase === "loading" && (
         <div className="screen active" style={{ justifyContent: "center", alignItems: "center" }}>
           <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>

@@ -12,12 +12,20 @@
 html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-family:var(--font-syne), sans-serif;}
 
 /* ── SHELL ── */
-.shell{width:100%;max-width:393px;height:100dvh;min-height:100dvh;max-height:100dvh;margin:0 auto;background:var(--ink);display:flex;flex-direction:column;position:relative;overflow:hidden;}
-
-/* ── STATUS BAR ── */
-.sb{height:46px;min-height:46px;background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 20px;padding-top:env(safe-area-inset-top,0);flex-shrink:0;z-index:200;}
-.sb-time{font-family:var(--font-dm-mono), monospace;font-size:13px;font-weight:500;color:var(--paper);letter-spacing:.03em;}
-.sb-icons{display:flex;gap:5px;font-size:13px;}
+.shell{
+  width:100%;
+  max-width:393px;
+  height:100dvh;
+  min-height:100dvh;
+  max-height:100dvh;
+  margin:0 auto;
+  background:var(--ink);
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  overflow:hidden;
+  padding-top:env(safe-area-inset-top,0);
+}
 
 /* ── SCREENS ── */
 .screen{flex:1 1 0%;min-height:0;overflow:hidden;display:none;flex-direction:column;position:relative;}
