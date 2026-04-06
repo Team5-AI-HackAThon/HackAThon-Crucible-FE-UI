@@ -486,6 +486,115 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
 
 .spacer{height:10px;}
 
+/* Record tab — saved clips library */
+.record-lib-grid{display:flex;flex-wrap:wrap;gap:10px;}
+.record-lib-thumb{
+  width:calc(50% - 5px);
+  min-width:132px;
+  max-width:200px;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid var(--border2);
+  background:var(--ink3);
+  cursor:pointer;
+  padding:0;
+  margin:0;
+  text-align:left;
+  font:inherit;
+  color:inherit;
+  -webkit-appearance:none;
+  appearance:none;
+}
+@media (min-width:400px){.record-lib-thumb{width:calc(33.333% - 7px);}}
+.record-lib-thumb-vid{width:100%;aspect-ratio:16/10;display:block;object-fit:cover;background:#111;}
+.record-lib-thumb-meta{padding:8px 10px 10px;font-family:var(--font-dm-mono), monospace;font-size:9px;color:var(--muted);letter-spacing:.06em;line-height:1.35;}
+.record-lib-thumb-badge{font-size:8px;text-transform:uppercase;color:var(--sage);margin-bottom:4px;letter-spacing:.1em;}
+.record-lib-thumb-badge.draft{color:var(--gold);}
+.record-review-actions{display:flex;gap:10px;padding:0 20px 20px;}
+.record-review-actions .btn-keep{
+  flex:1;padding:12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--paper);
+  font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+}
+.record-review-actions .btn-delete{
+  flex:1;padding:12px;border-radius:8px;border:1px solid rgba(229,67,26,.45);background:rgba(229,67,26,.12);color:var(--ember);
+  font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+}
+.record-review-actions .btn-delete:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Record review modal — centered mid-screen; match .shell width */
+.modal-overlay.record-review-overlay.open{
+  align-items:center;
+  justify-content:center;
+  padding:16px 10px;
+  box-sizing:border-box;
+}
+.record-review-modal-frame{
+  width:100%;
+  max-width:393px;
+  margin:0 auto;
+  max-height:calc(100dvh - 32px);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  box-sizing:border-box;
+}
+.record-review-sheet{
+  width:100%;
+  max-height:min(88dvh,calc(100dvh - 32px));
+  overflow-y:auto;
+  overflow-x:hidden;
+  border-radius:16px!important;
+  border:1px solid var(--border2);
+  animation:none;
+}
+.record-review-body{padding-top:0!important;}
+.record-review-meta{
+  font-family:var(--font-dm-mono), monospace;
+  font-size:9px;
+  letter-spacing:.12em;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+.record-review-vid-wrap{
+  width:100%;
+  max-width:100%;
+  max-height:min(42dvh,240px);
+  border-radius:10px;
+  overflow:hidden;
+  background:#000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+}
+.record-review-vid{
+  width:100%;
+  max-width:100%;
+  height:auto;
+  max-height:min(42dvh,240px);
+  display:block;
+  object-fit:contain;
+  vertical-align:middle;
+}
+
+/* Record tab — camera-off message, dead center of preview shell */
+.record-camera-off-hint{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  width:max-content;
+  max-width:calc(100% - 24px);
+  box-sizing:border-box;
+  margin:0;
+  padding:0 6px;
+  font-size:11px;
+  line-height:1.35;
+  text-align:center;
+  color:#666;
+  pointer-events:none;
+}
+
 /* Reset <button> inside bottom nav — match .ni (inherit was from <nav>, not .ni) */
 .bnav button.ni{
   border:none;background:transparent;margin:0;

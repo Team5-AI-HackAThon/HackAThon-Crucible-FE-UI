@@ -208,7 +208,7 @@ export function CrucibleApp() {
         <InvestorOnboarding userId={session.user.id} onSkip={handleSkipOnboarding} onComplete={handleOnboardingComplete} />
       )}
 
-      {phase === "app" && (
+      {phase === "app" && session && (
         <>
           <div className={`screen${tab === "feed" ? " active" : ""}`}>
             <FeedScreen role={role} firstName={firstName} onOpenModal={() => setModalOpen(true)} />
@@ -219,7 +219,11 @@ export function CrucibleApp() {
           </div>
 
           <div className={`screen${tab === "quiz" ? " active" : ""}`}>
-            <RecordScreen onGoProfile={() => switchTab("founder")} firstName={firstName} />
+            <RecordScreen
+              userId={session.user.id}
+              onGoProfile={() => switchTab("founder")}
+              firstName={firstName}
+            />
           </div>
 
           <div className={`screen${tab === "founder" ? " active" : ""}`}>

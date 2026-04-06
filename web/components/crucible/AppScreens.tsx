@@ -1,32 +1,14 @@
 "use client";
 
 import type { Role } from "./types";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useState } from "react";
+import { AppScreenHeader } from "./AppScreenHeader";
 
 const FEED_CHIPS = ["All", "🔥 Trending", "Seed", "AI / ML", "Climate"] as const;
 const FOUNDER_CHIPS = ["Browse VCs", "My Videos", "Saved", "Intros"] as const;
 
-export function AppScreenHeader({
-  firstName,
-  rightSlot,
-  hdrStyle,
-}: {
-  firstName: string;
-  rightSlot: ReactNode;
-  hdrStyle?: CSSProperties;
-}) {
-  return (
-    <div className="hdr" style={hdrStyle}>
-      <div className="hdr-greet">Hello {firstName}</div>
-      <div className="hdr-top">
-        <div className="logo">
-          Cruc<span>ible</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>{rightSlot}</div>
-      </div>
-    </div>
-  );
-}
+export { AppScreenHeader } from "./AppScreenHeader";
+export { RecordScreen } from "./RecordScreen";
 
 type FeedProps = {
   role: Role;
@@ -286,145 +268,6 @@ export function MatchesScreen({ firstName }: { firstName: string }) {
         <div className="spacer" />
       </div>
     </>
-  );
-}
-
-const QUIZ_PROMPTS: Record<string, string> = {
-  p1: '"Your team is on the 48th floor of the Santander Building, Downtown Dallas. Floors 20–30 are on fire. How do you get out?"',
-  p2: '"Your team has landed in Japan to learn Tai-Chi and compete in NYC in 1 week. No prior experience. No contacts. How do you become experts in time?"',
-  custom: '"Write your own crisis scenario for your team to respond to together on camera."',
-};
-
-export function RecordScreen({ onGoProfile, firstName }: { onGoProfile: () => void; firstName: string }) {
-  const [quizKey, setQuizKey] = useState<keyof typeof QUIZ_PROMPTS>("p1");
-  const [recording, setRecording] = useState(true);
-  const [secs, setSecs] = useState(126);
-
-  const promptText = QUIZ_PROMPTS[quizKey];
-  const fillPct = Math.min(100, (secs / 300) * 100);
-  const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
-
-  useEffect(() => {
-    if (!recording) return;
-    const t = setInterval(() => {
-      setSecs((s) => (s >= 300 ? s : s + 1));
-    }, 1000);
-    return () => clearInterval(t);
-  }, [recording]);
-
-  return (
-    <div style={{ background: "#050505", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <AppScreenHeader
-        firstName={firstName}
-        hdrStyle={{ background: "#050505", borderColor: "#111" }}
-        rightSlot={
-          <>
-            <div className="role-badge">● REC</div>
-            <div className="hdr-avatar" style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}>
-              {av}
-            </div>
-          </>
-        }
-      />
-      <div className="quiz-sel">
-        {(["p1", "p2", "custom"] as const).map((k) => (
-          <div
-            key={k}
-            className={`qsel-btn${quizKey === k ? " active" : ""}`}
-            onClick={() => setQuizKey(k)}
-            role="button"
-          >
-            {k === "p1" && "Prompt 1 · Fire Escape"}
-            {k === "p2" && "Prompt 2 · Tai-Chi Japan"}
-            {k === "custom" && "+ Custom"}
-          </div>
-        ))}
-      </div>
-      <div className="quiz-prompt-block">
-        <div className="qpb-bg">🔥</div>
-        <div className="qpb-tag">
-          <div className="live-dot" style={{ display: "inline-block", verticalAlign: "middle" }} />
-          &nbsp; Active Scenario
-        </div>
-        <div className="qpb-title">{promptText}</div>
-        <div className="qpb-meta">
-          <div className="qpb-template">Template · Prompt 1</div>
-          <div className="qpb-timer">05:00 max</div>
-        </div>
-      </div>
-      <div className="sa" style={{ flex: 1, minHeight: 0 }}>
-        <div className="cam-grid">
-          <div className="cam speaking">
-            <div className="cam-live">● Live</div>
-            <div className="cam-av" style={{ background: "linear-gradient(135deg,#e5431a,#c8a44a)" }}>
-              J
-            </div>
-            <div className="cam-name">Jake · CEO</div>
-            <div className="cam-mic">🎙</div>
-          </div>
-          <div className="cam">
-            <div className="cam-live" style={{ background: "#1a1a1a", color: "#444" }}>
-              ● Live
-            </div>
-            <div className="cam-av" style={{ background: "linear-gradient(135deg,#1a6fa8,#00c4ff)" }}>
-              A
-            </div>
-            <div className="cam-name">Aya · CTO</div>
-            <div className="cam-mic" style={{ opacity: 0.15 }}>
-              🎙
-            </div>
-          </div>
-          <div className="cam cam-add">
-            <div className="cam-add-icon">＋</div>
-            <div className="cam-add-lbl">Add Member</div>
-          </div>
-          <div className="cam" style={{ borderStyle: "dashed", borderColor: "#161616", opacity: 0.3 }}>
-            <div className="cam-add-icon">👤</div>
-            <div className="cam-add-lbl">Empty Seat</div>
-          </div>
-        </div>
-        <div className="rec-section">
-          <div className="rec-track">
-            <div className="rec-fill" style={{ width: `${fillPct}%` }} />
-          </div>
-          <div className="rec-times">
-            <div className="rec-el">
-              {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
-            </div>
-            <div className="rec-mx">5:00 max</div>
-          </div>
-        </div>
-        <div className="rec-controls">
-          <div className="ctrl">🔇</div>
-          <button
-            type="button"
-            className="rec-stop"
-            onClick={() => setRecording((r) => !r)}
-            style={{ background: recording ? "var(--ember)" : "#2a2a2a" }}
-          >
-            {recording ? "⏹" : "▶"}
-          </button>
-          <div className="ctrl">📷</div>
-        </div>
-        <div className="submit-wrap">
-          <button type="button" className="submit-btn" onClick={onGoProfile}>
-            Submit to Feed →
-          </button>
-        </div>
-        <div className="sec">{"// Coaching Tips"}</div>
-        <div className="tips-row">
-          <div className="tip">
-            <div className="tip-icon">💡</div>
-            <div className="tip-txt">Let all members speak — VCs look for collaboration, not just the CEO.</div>
-          </div>
-          <div className="tip">
-            <div className="tip-icon">📍</div>
-            <div className="tip-txt">Use location details. Noticing specifics signals strategic thinking.</div>
-          </div>
-        </div>
-        <div className="spacer" />
-      </div>
-    </div>
   );
 }
 

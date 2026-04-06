@@ -12,6 +12,7 @@ SQL migrations model the founder/investor flows, PRD data needs, and your prelim
    - `migrations/20250405000001_seed_lookups.sql`
    - `migrations/20250405000002_rls.sql`
    - `migrations/20250405000003_auth_profile_hook.sql` (optional; creates `profiles` on `auth.users` insert)
+   - `migrations/20250406120000_storage_crucible_media.sql` (**Record tab**: Storage bucket `crucible-media` + RLS policies)
 
 **Option B — Supabase CLI** (from repo root, after `supabase link`)
 
@@ -27,7 +28,7 @@ To set **founder vs investor** before the user row exists, pass `role` in user m
 
 ## Storage (Record tab)
 
-Create a bucket (e.g. **`crucible-media`**) and policies so founders can upload to their prefix; store `storage_bucket` + `storage_path` in `media_assets`. Details are intentionally left to your API layer.
+Run migration **`20250406120000_storage_crucible_media.sql`**, which creates bucket **`crucible-media`** (private), sets upload/read rules for `{auth.uid()}/…` paths, and lets investors read objects linked to **published** `media_assets`. The web app uploads WebM/MP4 and inserts rows into `media_assets` with matching `storage_path`.
 
 ## Backend APIs
 
