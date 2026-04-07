@@ -254,7 +254,7 @@ export function CrucibleApp() {
           </div>
 
           <div className={`screen${tab === "msg" ? " active" : ""}`}>
-            <InboxScreen firstName={firstName} />
+            <InboxScreen firstName={firstName} userId={session.user.id} />
           </div>
 
           <nav className="bnav">

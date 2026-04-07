@@ -14,16 +14,20 @@ SQL migrations model the founder/investor flows, PRD data needs, and your prelim
    - `migrations/20250405000003_auth_profile_hook.sql` (optional; creates `profiles` on `auth.users` insert)
    - `migrations/20250406120000_storage_crucible_media.sql` (**Record tab**: Storage bucket `crucible-media` + RLS policies)
    - `migrations/20250406140000_seed_feed_items.sql` (**Feed tab demo**: email/password users + `projects` + published `media_assets` + `feed_items`)
+   - `migrations/20250406150000_feed_public_read_policies.sql` (**Feed**: any authenticated user can read `feed_items` and joined project/media rows on the feed)
+   - `migrations/20250406160000_seed_inbox_conversations.sql` (**Inbox**: `profiles` RLS for messaging partners + demo `conversations` / `messages`; requires feed demo users)
 
 ### Feed demo seed (optional)
 
 After **`20250406140000_seed_feed_items.sql`**, enable **Email** under Authentication → Providers (same password for all seeded accounts: **`DemoPassword123!`**), then sign in as:
 
-| Account | Role | Feed visibility |
-|--------|------|-----------------|
-| `feed-demo-founder1@crucible.test` | Founder | Own two projects (two feed cards) |
-| `feed-demo-founder2@crucible.test` | Founder | Own one project (one feed card) |
-| `feed-demo-vc@crucible.test` | Investor | All three feed items (VC discovery) |
+| Account | Role | Notes |
+|--------|------|--------|
+| `feed-demo-founder1@crucible.test` | Founder | Two projects seeded |
+| `feed-demo-founder2@crucible.test` | Founder | One project seeded |
+| `feed-demo-vc@crucible.test` | Investor | — |
+
+With **`20250406150000_feed_public_read_policies.sql`** applied, every signed-in user sees the **full** feed (not only investors or own projects).
 
 The web app loads `feed_items` with joined `media_assets` and `projects` (RLS applies automatically). Google-only projects can ignore this migration and rely on real recordings instead.
 

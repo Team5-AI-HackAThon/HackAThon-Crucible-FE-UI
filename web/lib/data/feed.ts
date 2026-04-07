@@ -1,5 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type FounderProjectOption = { id: string; name: string };
+
+export async function fetchFounderProjects(
+  supabase: SupabaseClient,
+  founderId: string,
+): Promise<FounderProjectOption[]> {
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("founder_id", founderId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Row from feed_items + joined media + project (RLS limits founders to own projects; VCs see all). */
 export type FeedItemRow = {
   id: string;
@@ -67,6 +82,30 @@ export async function fetchFeedItems(supabase: SupabaseClient): Promise<FeedItem
       projects: project as FeedItemRow["projects"],
     };
   });
+}
+
+export type FeedItemRowWithPlayback = FeedItemRow & { signedVideoUrl: string | null };
+
+/** Signed URLs for in-feed playback (short-lived; refresh on feed reload). */
+export async function attachSignedUrlsToFeedItems(
+  supabase: SupabaseClient,
+  items: FeedItemRow[],
+): Promise<FeedItemRowWithPlayback[]> {
+  return Promise.all(
+    items.map(async (row) => {
+      const m = row.media_assets;
+      if (!m?.storage_bucket || !m?.storage_path) {
+        return { ...row, signedVideoUrl: null };
+      }
+      const { data, error } = await supabase.storage
+        .from(m.storage_bucket)
+        .createSignedUrl(m.storage_path, 3600);
+      if (error) {
+        return { ...row, signedVideoUrl: null };
+      }
+      return { ...row, signedVideoUrl: data?.signedUrl ?? null };
+    }),
+  );
 }
 
 export function quizSlugToPromptHeadline(slug: string | null): string {

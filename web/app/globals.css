@@ -121,6 +121,29 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
 .logo span{color:var(--ember);font-style:normal;}
 .role-badge{font-family:var(--font-dm-mono), monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);background:var(--ember2);padding:4px 10px;border-radius:2px;border:1px solid rgba(229,67,26,.2);}
 .hdr-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--ember));display:flex;align-items:center;justify-content:center;font-family:var(--font-cormorant), serif;font-size:16px;font-weight:700;color:white;cursor:pointer;flex-shrink:0;}
+.feed-add-strip{display:flex;justify-content:center;align-items:center;padding:10px 18px 6px;flex-shrink:0;}
+.feed-add-btn{
+  font-family:var(--font-dm-mono), monospace;font-size:9px;letter-spacing:.09em;text-transform:uppercase;
+  padding:6px 18px;border-radius:2px;border:1px solid var(--ember);background:var(--ember);color:white;cursor:pointer;white-space:nowrap;
+}
+.feed-add-btn:active{opacity:.88;}
+.feed-add-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:flex-end;justify-content:center;
+  padding:0 16px max(20px,env(safe-area-inset-bottom,20px));
+}
+.feed-add-modal{
+  width:100%;max-width:393px;background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:16px 16px 18px;
+  margin-bottom:8px;max-height:min(85dvh,640px);overflow-y:auto;
+}
+.feed-add-modal .feed-add-title{font-family:var(--font-dm-mono), monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);margin-bottom:14px;}
+.feed-add-modal label{display:block;font-size:10px;color:var(--muted);font-family:var(--font-dm-mono), monospace;letter-spacing:.06em;margin-bottom:6px;}
+.feed-add-modal input,.feed-add-modal select,.feed-add-modal textarea{
+  width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--ink2);color:var(--paper);font-size:13px;margin-bottom:12px;font-family:inherit;
+}
+.feed-add-modal textarea{min-height:56px;resize:vertical;}
+.feed-add-actions{display:flex;gap:8px;margin-top:4px;}
+.feed-add-actions button{flex:1;padding:12px;border-radius:6px;font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted);}
+.feed-add-actions button.primary{background:var(--ember);border-color:var(--ember);color:white;}
 .chip-row{display:flex;gap:6px;padding:11px 18px;overflow-x:auto;flex-shrink:0;}
 .chip-row::-webkit-scrollbar{display:none;}
 .chip{font-family:var(--font-dm-mono), monospace;font-size:9px;letter-spacing:.09em;text-transform:uppercase;padding:6px 13px;border-radius:2px;border:1px solid var(--border2);background:transparent;color:var(--muted);white-space:nowrap;cursor:pointer;transition:all .15s;}
@@ -282,6 +305,16 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
 .vcard:nth-child(3){animation-delay:.1s;}
 
 .vthumb{width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;}
+.feed-card-video{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center;
+  background:#000;
+  z-index:1;
+}
 .vthumb-bg{position:absolute;inset:0;}
 .g1{background:linear-gradient(135deg,#1a0800 0%,#5c1800 55%,#e5431a 100%);}
 .g2{background:linear-gradient(135deg,#001520 0%,#003a5c 55%,#1a6fa8 100%);}

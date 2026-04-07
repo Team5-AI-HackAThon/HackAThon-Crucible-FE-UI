@@ -1,17 +1,21 @@
 "use client";
 
 import type { Role } from "./types";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import {
+  attachSignedUrlsToFeedItems,
   fetchFeedItems,
+  fetchFounderProjects,
   projectMetaMatchPct,
   projectMetaStage,
   projectMetaTags,
   quizSlugToPromptHeadline,
-  type FeedItemRow,
+  type FeedItemRowWithPlayback,
+  type FounderProjectOption,
 } from "@/lib/data/feed";
-import { formatDuration } from "@/lib/data/mediaAssets";
+import { fetchOwnerMediaList, formatDuration, type OwnerMediaRow } from "@/lib/data/mediaAssets";
+import { fetchInboxPreviews, type InboxPreview } from "@/lib/data/inbox";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 const FEED_CHIPS = ["All", "🔥 Trending", "Seed", "AI / ML", "Climate"] as const;
@@ -29,11 +33,286 @@ type FeedProps = {
 
 const GRADS = ["g1", "g2", "g3"] as const;
 
+function recordingPickerLabel(row: OwnerMediaRow): string {
+  const dur = formatDuration(row.duration_seconds);
+  const when = new Date(row.created_at).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${dur} · ${when}`;
+}
+
+function FeedAddModal({
+  open,
+  onClose,
+  userId,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  userId: string;
+  onCreated: () => void;
+}) {
+  const [projects, setProjects] = useState<FounderProjectOption[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [source, setSource] = useState<"url" | "library">("library");
+  const [libraryRows, setLibraryRows] = useState<OwnerMediaRow[]>([]);
+  const [loadingLibrary, setLoadingLibrary] = useState(false);
+  const [mediaAssetId, setMediaAssetId] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [liveTag, setLiveTag] = useState("");
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formErr, setFormErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open || !userId) return;
+    const supabase = getSupabaseBrowser();
+    if (!supabase) {
+      setProjects([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingProjects(true);
+    setFormErr(null);
+    void fetchFounderProjects(supabase, userId)
+      .then((rows) => {
+        if (!cancelled) {
+          setProjects(rows);
+          setProjectId((prev) => {
+            if (prev && rows.some((r) => r.id === prev)) return prev;
+            return rows[0]?.id ?? "";
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProjects(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, userId]);
+
+  useEffect(() => {
+    if (!open || !userId) return;
+    const supabase = getSupabaseBrowser();
+    if (!supabase) {
+      setLibraryRows([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingLibrary(true);
+    void fetchOwnerMediaList(supabase, userId)
+      .then((rows) => {
+        if (!cancelled) {
+          setLibraryRows(rows);
+          setMediaAssetId((prev) => {
+            if (prev && rows.some((r) => r.id === prev)) return prev;
+            return rows[0]?.id ?? "";
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLibraryRows([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLibrary(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, userId]);
+
+  if (!open) return null;
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setFormErr(null);
+    if (!projectId.trim()) {
+      setFormErr("Choose a project.");
+      return;
+    }
+    if (source === "library") {
+      if (!mediaAssetId.trim()) {
+        setFormErr("Select a recording from the Record tab library, or switch to URL.");
+        return;
+      }
+    } else if (!videoUrl.trim()) {
+      setFormErr("Paste a video URL, or choose a recording from the library.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res =
+        source === "library"
+          ? await fetch("/api/feed/from-recording", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({
+                projectId: projectId.trim(),
+                mediaAssetId: mediaAssetId.trim(),
+                liveScenarioTag: liveTag.trim() || null,
+              }),
+            })
+          : await fetch("/api/feed/from-url", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({
+                projectId: projectId.trim(),
+                videoUrl: videoUrl.trim(),
+                liveScenarioTag: liveTag.trim() || null,
+              }),
+            });
+      const json = (await res.json()) as { error?: string; ok?: boolean };
+      if (!res.ok) {
+        setFormErr(json.error ?? "Could not add to feed.");
+        return;
+      }
+      setVideoUrl("");
+      setLiveTag("");
+      onCreated();
+      onClose();
+    } catch {
+      setFormErr("Network error.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="feed-add-overlay" onClick={onClose} role="presentation">
+      <div className="feed-add-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="feed-add-title">Add to feed</div>
+        <p style={{ color: "var(--muted)", fontSize: 11, lineHeight: 1.45, marginBottom: 14 }}>
+          Publish from your <strong style={{ color: "var(--paper)" }}>Record</strong> library (same uploads as the Record
+          tab), or paste a URL (YouTube or direct .mp4 / .webm URL imports on the server).
+        </p>
+        <form onSubmit={(e) => void submit(e)}>
+          <label htmlFor="feed-proj">Project</label>
+          <select
+            id="feed-proj"
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={loadingProjects || projects.length === 0}
+          >
+            {projects.length === 0 ? (
+              <option value="">No projects — create one from Profile first</option>
+            ) : (
+              projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))
+            )}
+          </select>
+          <label htmlFor="feed-source">Video source</label>
+          <select
+            id="feed-source"
+            value={source}
+            onChange={(e) => {
+              const v = e.target.value as "url" | "library";
+              setSource(v);
+              setFormErr(null);
+            }}
+          >
+            <option value="library">Record library</option>
+            <option value="url">Paste URL (YouTube or direct file)</option>
+          </select>
+          {source === "library" ? (
+            <>
+              <label htmlFor="feed-library">Recording</label>
+              <select
+                id="feed-library"
+                value={mediaAssetId}
+                onChange={(e) => setMediaAssetId(e.target.value)}
+                disabled={loadingLibrary || libraryRows.length === 0}
+              >
+                {libraryRows.length === 0 ? (
+                  <option value="">
+                    {loadingLibrary ? "Loading recordings…" : "No recordings — use Record tab first"}
+                  </option>
+                ) : (
+                  libraryRows.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {recordingPickerLabel(row)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </>
+          ) : (
+            <>
+              <label htmlFor="feed-url">Video URL</label>
+              <input
+                id="feed-url"
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                placeholder="https://www.youtube.com/watch?v=… or https://…/clip.mp4"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+              />
+            </>
+          )}
+          <label htmlFor="feed-live">Live scenario (optional)</label>
+          <textarea
+            id="feed-live"
+            placeholder="Short tag shown on the feed banner…"
+            value={liveTag}
+            onChange={(e) => setLiveTag(e.target.value)}
+          />
+          {formErr && (
+            <p style={{ color: "var(--ember)", fontSize: 11, marginBottom: 10 }}>{formErr}</p>
+          )}
+          <div className="feed-add-actions">
+            <button type="button" onClick={onClose} disabled={submitting}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="primary"
+              disabled={
+                submitting ||
+                projects.length === 0 ||
+                (source === "url" ? !videoUrl.trim() : !mediaAssetId.trim() || libraryRows.length === 0)
+              }
+            >
+              {submitting
+                ? source === "library"
+                  ? "Publishing…"
+                  : "Importing…"
+                : "Publish"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) {
   const [chip, setChip] = useState(0);
-  const [items, setItems] = useState<FeedItemRow[]>([]);
+  const [items, setItems] = useState<FeedItemRowWithPlayback[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [feedKey, setFeedKey] = useState(0);
+  const [showAdd, setShowAdd] = useState(false);
 
   const badge = role === "founder" ? "Founder View" : "VC View";
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
@@ -48,8 +327,9 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
     setLoading(true);
     setLoadErr(null);
     void fetchFeedItems(supabase)
-      .then((rows) => {
-        if (!cancelled) setItems(rows);
+      .then(async (rows) => {
+        const withUrls = await attachSignedUrlsToFeedItems(supabase, rows);
+        if (!cancelled) setItems(withUrls);
       })
       .catch((e: unknown) => {
         if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Could not load feed.");
@@ -60,7 +340,7 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, feedKey]);
 
   const liveLine =
     items[0]?.live_scenario_tag ??
@@ -77,6 +357,13 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
           </>
         }
       />
+      {role === "founder" && (
+        <div className="feed-add-strip">
+          <button type="button" className="feed-add-btn" onClick={() => setShowAdd(true)}>
+            +Add
+          </button>
+        </div>
+      )}
       <div className="chip-row">
         {FEED_CHIPS.map((c, i) => (
           <div
@@ -89,6 +376,12 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
           </div>
         ))}
       </div>
+      <FeedAddModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        userId={userId}
+        onCreated={() => setFeedKey((k) => k + 1)}
+      />
       <div className="sa">
         <div className="live-banner">
           <div className="lb-left">
@@ -138,7 +431,7 @@ function FeedCard({
   onOpen,
 }: {
   g: string;
-  item: FeedItemRow;
+  item: FeedItemRowWithPlayback;
   onOpen: () => void;
 }) {
   const [acts, setActs] = useState({ interested: false, pass: false, save: false });
@@ -158,21 +451,40 @@ function FeedCard({
   const subParts = [hq, stage].filter(Boolean);
   const subtitle = subParts.length > 0 ? subParts.join(" · ") : "—";
 
+  const signedVideoUrl = item.signedVideoUrl;
+
   return (
     <div className="vcard" onClick={onOpen}>
       <div className="vthumb">
-        <div className={`vthumb-bg ${g}`} />
-        <div className="vthumb-grain" />
-        <div className="vplay">
-          <div className="play-c">▶</div>
-          <div className="vdur">{dur}</div>
+        {signedVideoUrl ? (
+          <video
+            className="feed-card-video"
+            src={signedVideoUrl}
+            controls
+            playsInline
+            preload="metadata"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <>
+            <div className={`vthumb-bg ${g}`} />
+            <div className="vthumb-grain" />
+            <div className="vplay">
+              <div className="play-c">▶</div>
+              <div className="vdur">{dur}</div>
+            </div>
+          </>
+        )}
+        {!signedVideoUrl ? (
+          <div className="vfaces">
+            <div className="vface fa">{name.charAt(0).toUpperCase()}</div>
+            <div className="vface fb">▶</div>
+            <div className="vface fc">◇</div>
+          </div>
+        ) : null}
+        <div className="vmatch" style={{ zIndex: 2, pointerEvents: "none" }}>
+          {match} match
         </div>
-        <div className="vfaces">
-          <div className="vface fa">{name.charAt(0).toUpperCase()}</div>
-          <div className="vface fb">▶</div>
-          <div className="vface fc">◇</div>
-        </div>
-        <div className="vmatch">{match} match</div>
       </div>
       <div className="sent-row">
         <div className="sent-badge sent-lead">⚡ Clear Leadership</div>
@@ -537,8 +849,42 @@ export function ProfileScreen({
   );
 }
 
-export function InboxScreen({ firstName }: { firstName: string }) {
+const INBOX_AV_GRADS = [
+  "linear-gradient(135deg,#e5431a,#c8a44a)",
+  "linear-gradient(135deg,#5a8a6a,#2d7b2d)",
+  "linear-gradient(135deg,#1a6fa8,#00c4ff)",
+] as const;
+
+export function InboxScreen({ firstName, userId }: { firstName: string; userId: string }) {
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
+  const [rows, setRows] = useState<InboxPreview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseBrowser();
+    if (!supabase || !userId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadErr(null);
+    void fetchInboxPreviews(supabase, userId)
+      .then((r) => {
+        if (!cancelled) setRows(r);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Could not load inbox.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
   return (
     <>
       <AppScreenHeader
@@ -551,38 +897,40 @@ export function InboxScreen({ firstName }: { firstName: string }) {
         }
       />
       <div className="sa">
-        <div className="sec">{"// Active Conversations"}</div>
-        <div className="msg-item">
-          <div className="msg-av" style={{ background: "linear-gradient(135deg,#e5431a,#c8a44a)" }}>
-            J
-          </div>
-          <div className="msg-content">
-            <div className="msg-top">
-              <div className="msg-name">Jake Torres · Vanta AI</div>
-              <div className="msg-time">2m ago</div>
+        <div className="sec">{loading ? "// Loading conversations…" : "// Active Conversations"}</div>
+        {loadErr && (
+          <p style={{ color: "var(--ember)", fontSize: 11, marginBottom: 12 }}>{loadErr}</p>
+        )}
+        {!loading &&
+          rows.map((row, i) => (
+            <div key={row.conversationId} className="msg-item">
+              <div
+                className="msg-av"
+                style={{ background: INBOX_AV_GRADS[i % INBOX_AV_GRADS.length] }}
+              >
+                {row.avatarLetter}
+              </div>
+              <div className="msg-content">
+                <div className="msg-top">
+                  <div className="msg-name">
+                    {row.counterpartyName}
+                    {row.projectLabel ? ` · ${row.projectLabel}` : ""}
+                  </div>
+                  <div className="msg-time">{row.timeLabel}</div>
+                </div>
+                <div className="msg-preview">{row.preview}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                {row.unread ? <div className="msg-unread" /> : null}
+              </div>
             </div>
-            <div className="msg-preview">Thanks for the interest! Happy to schedule a call...</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-            <div className="msg-status-pill st-interested">Interested</div>
-            <div className="msg-unread" />
-          </div>
-        </div>
-        <div className="msg-item">
-          <div className="msg-av" style={{ background: "linear-gradient(135deg,#5a8a6a,#2d7b2d)" }}>
-            L
-          </div>
-          <div className="msg-content">
-            <div className="msg-top">
-              <div className="msg-name">Lena Park · GreenShift</div>
-              <div className="msg-time">1h ago</div>
-            </div>
-            <div className="msg-preview">We just submitted our Tai-Chi response, would love feedback.</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-            <div className="msg-status-pill st-saved">Saved</div>
-          </div>
-        </div>
+          ))}
+        {!loading && rows.length === 0 && !loadErr && (
+          <p style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
+            No conversations yet. After the inbox seed migration, sign in as a feed demo user to see sample
+            threads.
+          </p>
+        )}
         <div className="spacer" />
       </div>
     </>

@@ -13,10 +13,8 @@ export type OwnerMediaRow = {
 
 export type OwnerMediaWithUrl = OwnerMediaRow & { signedUrl: string | null };
 
-export async function fetchOwnerMediaWithSignedUrls(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<OwnerMediaWithUrl[]> {
+/** Record-tab library list (no signed URLs — use for pickers). */
+export async function fetchOwnerMediaList(supabase: SupabaseClient, userId: string): Promise<OwnerMediaRow[]> {
   const { data, error } = await supabase
     .from("media_assets")
     .select("id, storage_bucket, storage_path, duration_seconds, published_at, created_at, quiz_template_slug, kind")
@@ -25,10 +23,18 @@ export async function fetchOwnerMediaWithSignedUrls(
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  if (!data?.length) return [];
+  return data ?? [];
+}
+
+export async function fetchOwnerMediaWithSignedUrls(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<OwnerMediaWithUrl[]> {
+  const rows = await fetchOwnerMediaList(supabase, userId);
+  if (!rows.length) return [];
 
   return Promise.all(
-    data.map(async (row) => {
+    rows.map(async (row) => {
       const { data: signed } = await supabase.storage
         .from(row.storage_bucket)
         .createSignedUrl(row.storage_path, 3600);
