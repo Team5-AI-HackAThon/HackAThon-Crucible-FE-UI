@@ -13,6 +13,19 @@ SQL migrations model the founder/investor flows, PRD data needs, and your prelim
    - `migrations/20250405000002_rls.sql`
    - `migrations/20250405000003_auth_profile_hook.sql` (optional; creates `profiles` on `auth.users` insert)
    - `migrations/20250406120000_storage_crucible_media.sql` (**Record tab**: Storage bucket `crucible-media` + RLS policies)
+   - `migrations/20250406140000_seed_feed_items.sql` (**Feed tab demo**: email/password users + `projects` + published `media_assets` + `feed_items`)
+
+### Feed demo seed (optional)
+
+After **`20250406140000_seed_feed_items.sql`**, enable **Email** under Authentication → Providers (same password for all seeded accounts: **`DemoPassword123!`**), then sign in as:
+
+| Account | Role | Feed visibility |
+|--------|------|-----------------|
+| `feed-demo-founder1@crucible.test` | Founder | Own two projects (two feed cards) |
+| `feed-demo-founder2@crucible.test` | Founder | Own one project (one feed card) |
+| `feed-demo-vc@crucible.test` | Investor | All three feed items (VC discovery) |
+
+The web app loads `feed_items` with joined `media_assets` and `projects` (RLS applies automatically). Google-only projects can ignore this migration and rely on real recordings instead.
 
 **Option B — Supabase CLI** (from repo root, after `supabase link`)
 

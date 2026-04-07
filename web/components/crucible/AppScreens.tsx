@@ -1,7 +1,17 @@
 "use client";
 
 import type { Role } from "./types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
+import {
+  fetchFeedItems,
+  projectMetaMatchPct,
+  projectMetaStage,
+  projectMetaTags,
+  quizSlugToPromptHeadline,
+  type FeedItemRow,
+} from "@/lib/data/feed";
+import { formatDuration } from "@/lib/data/mediaAssets";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 const FEED_CHIPS = ["All", "🔥 Trending", "Seed", "AI / ML", "Climate"] as const;
@@ -14,12 +24,47 @@ type FeedProps = {
   role: Role;
   onOpenModal: () => void;
   firstName: string;
+  userId: string;
 };
 
-export function FeedScreen({ role, onOpenModal, firstName }: FeedProps) {
+const GRADS = ["g1", "g2", "g3"] as const;
+
+export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) {
   const [chip, setChip] = useState(0);
+  const [items, setItems] = useState<FeedItemRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
   const badge = role === "founder" ? "Founder View" : "VC View";
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseBrowser();
+    if (!supabase || !userId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadErr(null);
+    void fetchFeedItems(supabase)
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Could not load feed.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const liveLine =
+    items[0]?.live_scenario_tag ??
+    "48th floor, Santander Building, Dallas. Floors 20–30 on fire.";
 
   return (
     <>
@@ -51,18 +96,36 @@ export function FeedScreen({ role, onOpenModal, firstName }: FeedProps) {
               <div className="live-dot" style={{ display: "inline-block", verticalAlign: "middle" }} />
               &nbsp;Live Scenario
             </div>
-            <div className="lb-text">
-              &quot;48th floor, Santander Building, Dallas. Floors 20–30 on fire.&quot;
-            </div>
+            <div className="lb-text">&quot;{liveLine}&quot;</div>
           </div>
           <div className="lb-right">
-            <div className="lb-num">62</div>
-            <div className="lb-sub">recording</div>
+            <div className="lb-num">{items.length > 0 ? String(items.length) : "—"}</div>
+            <div className="lb-sub">in feed</div>
           </div>
         </div>
-        <div className="sec">{"// New Submissions · 247 this week"}</div>
-        <FeedCard g="g1" match="94%" onOpen={onOpenModal} />
-        <FeedCard g="g2" match="88%" onOpen={onOpenModal} />
+        <div className="sec">
+          {loading
+            ? "// Loading feed…"
+            : `// New Submissions · ${items.length} ${items.length === 1 ? "item" : "items"}`}
+        </div>
+        {loadErr && (
+          <p style={{ color: "var(--ember)", fontSize: 11, marginBottom: 12 }}>{loadErr}</p>
+        )}
+        {!loading &&
+          items.map((row, i) => (
+            <FeedCard
+              key={row.id}
+              g={GRADS[i % GRADS.length]}
+              item={row}
+              onOpen={onOpenModal}
+            />
+          ))}
+        {!loading && items.length === 0 && !loadErr && (
+          <p style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
+            No feed items yet. Run the feed seed migration and sign in as a demo founder or VC (see
+            supabase/README.md), or publish a recording from the Record tab.
+          </p>
+        )}
         <div className="spacer" />
       </div>
     </>
@@ -71,14 +134,29 @@ export function FeedScreen({ role, onOpenModal, firstName }: FeedProps) {
 
 function FeedCard({
   g,
-  match,
+  item,
   onOpen,
 }: {
   g: string;
-  match: string;
+  item: FeedItemRow;
   onOpen: () => void;
 }) {
   const [acts, setActs] = useState({ interested: false, pass: false, save: false });
+
+  const m = item.media_assets;
+  const p = item.projects;
+  const meta = p?.metadata ?? null;
+  const match = projectMetaMatchPct(meta);
+  const stage = projectMetaStage(meta);
+  const tags = projectMetaTags(meta);
+  const dur = formatDuration(m?.duration_seconds ?? null);
+  const slug = m?.quiz_template_slug ?? null;
+  const headline = quizSlugToPromptHeadline(slug);
+  const pitch = p?.one_line_pitch?.trim() ?? "";
+  const hq = p?.hq_city?.trim() ?? "";
+  const name = p?.name?.trim() ?? "Startup";
+  const subParts = [hq, stage].filter(Boolean);
+  const subtitle = subParts.length > 0 ? subParts.join(" · ") : "—";
 
   return (
     <div className="vcard" onClick={onOpen}>
@@ -87,12 +165,12 @@ function FeedCard({
         <div className="vthumb-grain" />
         <div className="vplay">
           <div className="play-c">▶</div>
-          <div className="vdur">2:47</div>
+          <div className="vdur">{dur}</div>
         </div>
         <div className="vfaces">
-          <div className="vface fa">J</div>
-          <div className="vface fb">A</div>
-          <div className="vface fc">R</div>
+          <div className="vface fa">{name.charAt(0).toUpperCase()}</div>
+          <div className="vface fb">▶</div>
+          <div className="vface fc">◇</div>
         </div>
         <div className="vmatch">{match} match</div>
       </div>
@@ -102,22 +180,26 @@ function FeedCard({
         <div className="sent-badge sent-comm">🗣 Strong Comm.</div>
       </div>
       <div className="cbody">
-        <div className="cscen">🔥 Prompt 1 — Fire Escape · Dallas</div>
+        <div className="cscen">{headline}</div>
         <div className="cprompt">
-          &quot;48th floor. Floors 20–30 on fire. How does your team get out?&quot;
+          {pitch
+            ? `"${pitch}"`
+            : `"48th floor. Floors 20–30 on fire. How does your team get out?"`}
         </div>
         <div className="cco-row">
-          <div className="cco-dot d1">V</div>
+          <div className="cco-dot d1">{name.charAt(0).toUpperCase()}</div>
           <div className="cco-info">
-            <div className="cco-name">Vanta AI</div>
-            <div className="cco-sub">San Francisco · B2B SaaS · Security</div>
+            <div className="cco-name">{name}</div>
+            <div className="cco-sub">{subtitle}</div>
           </div>
-          <div className="stage-p">Seed · $2.4M</div>
+          <div className="stage-p">{stage ?? "—"}</div>
         </div>
         <div className="ctags">
-          <span className="ctag">AI Infra</span>
-          <span className="ctag">B2B</span>
-          <span className="ctag">3-person team</span>
+          {(tags.length > 0 ? tags : ["Demo", "Crucible"]).map((t, ti) => (
+            <span key={`${ti}-${t}`} className="ctag">
+              {t}
+            </span>
+          ))}
         </div>
         <div className="cactions">
           <button

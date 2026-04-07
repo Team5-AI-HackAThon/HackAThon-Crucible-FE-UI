@@ -222,7 +222,12 @@ export function CrucibleApp() {
       {phase === "app" && session && (
         <>
           <div className={`screen${tab === "feed" ? " active" : ""}`}>
-            <FeedScreen role={role} firstName={firstName} onOpenModal={() => setModalOpen(true)} />
+            <FeedScreen
+              role={role}
+              firstName={firstName}
+              userId={session.user.id}
+              onOpenModal={() => setModalOpen(true)}
+            />
           </div>
 
           <div className={`screen${tab === "dash" ? " active" : ""}`}>
