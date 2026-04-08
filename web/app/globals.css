@@ -331,6 +331,20 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
 .fb{background:linear-gradient(135deg,#1a6fa8,#00c4ff);}
 .fc{background:linear-gradient(135deg,#5a8a6a,#2d7b2d);}
 .fd{background:linear-gradient(135deg,#b01f80,#7b2d8b);}
+.feed-remove-btn{
+  position:absolute;top:9px;left:10px;z-index:3;
+  font-family:var(--font-dm-mono), monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 9px;border-radius:3px;cursor:pointer;
+  color:var(--paper);background:rgba(0,0,0,.72);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.2);
+}
+.feed-remove-btn:disabled{opacity:.55;cursor:default;}
+.feed-remove-err{
+  position:absolute;bottom:8px;left:10px;right:10px;z-index:3;
+  font-family:var(--font-dm-mono), monospace;font-size:9px;color:var(--ember);
+  background:rgba(0,0,0,.75);padding:5px 8px;border-radius:3px;border:1px solid rgba(229,67,26,.35);
+  pointer-events:none;
+}
 .vmatch{position:absolute;top:9px;right:10px;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border:1px solid rgba(229,67,26,.4);border-radius:3px;padding:3px 8px;font-family:var(--font-dm-mono), monospace;font-size:9px;color:var(--ember);letter-spacing:.05em;}
 .sent-row{display:flex;gap:5px;flex-wrap:wrap;padding:10px 13px 0;}
 .sent-badge{display:flex;align-items:center;gap:4px;font-family:var(--font-dm-mono), monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:2px;}

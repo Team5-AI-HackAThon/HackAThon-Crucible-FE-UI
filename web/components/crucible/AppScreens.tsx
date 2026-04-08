@@ -410,7 +410,9 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
               key={row.id}
               g={GRADS[i % GRADS.length]}
               item={row}
+              userId={userId}
               onOpen={onOpenModal}
+              onRemoved={() => setFeedKey((k) => k + 1)}
             />
           ))}
         {!loading && items.length === 0 && !loadErr && (
@@ -428,15 +430,22 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
 function FeedCard({
   g,
   item,
+  userId,
   onOpen,
+  onRemoved,
 }: {
   g: string;
   item: FeedItemRowWithPlayback;
+  userId: string;
   onOpen: () => void;
+  onRemoved: () => void;
 }) {
   const [acts, setActs] = useState({ interested: false, pass: false, save: false });
+  const [removing, setRemoving] = useState(false);
+  const [removeErr, setRemoveErr] = useState<string | null>(null);
 
   const m = item.media_assets;
+  const isUploader = Boolean(userId && m?.owner_id === userId);
   const p = item.projects;
   const meta = p?.metadata ?? null;
   const match = projectMetaMatchPct(meta);
@@ -456,6 +465,40 @@ function FeedCard({
   return (
     <div className="vcard" onClick={onOpen}>
       <div className="vthumb">
+        {isUploader ? (
+          <button
+            type="button"
+            className="feed-remove-btn"
+            aria-label="Remove from feed"
+            disabled={removing}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (removing) return;
+              if (
+                !window.confirm(
+                  "Remove this post from the feed? Others will no longer see it here.",
+                )
+              ) {
+                return;
+              }
+              setRemoveErr(null);
+              setRemoving(true);
+              void fetch(`/api/feed/item/${encodeURIComponent(item.id)}`, { method: "DELETE" })
+                .then(async (res) => {
+                  const j = (await res.json().catch(() => ({}))) as { error?: string };
+                  if (!res.ok) {
+                    setRemoveErr(typeof j.error === "string" ? j.error : "Could not remove.");
+                    return;
+                  }
+                  onRemoved();
+                })
+                .catch(() => setRemoveErr("Could not remove."))
+                .finally(() => setRemoving(false));
+            }}
+          >
+            {removing ? "…" : "Remove"}
+          </button>
+        ) : null}
         {signedVideoUrl ? (
           <video
             className="feed-card-video"
@@ -485,6 +528,11 @@ function FeedCard({
         <div className="vmatch" style={{ zIndex: 2, pointerEvents: "none" }}>
           {match} match
         </div>
+        {removeErr ? (
+          <div className="feed-remove-err" onClick={(e) => e.stopPropagation()}>
+            {removeErr}
+          </div>
+        ) : null}
       </div>
       <div className="sent-row">
         <div className="sent-badge sent-lead">⚡ Clear Leadership</div>

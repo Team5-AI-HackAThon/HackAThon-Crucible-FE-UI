@@ -22,6 +22,7 @@ export type FeedItemRow = {
   live_scenario_tag: string | null;
   media_assets: {
     id: string;
+    owner_id: string;
     duration_seconds: number | null;
     quiz_template_slug: string | null;
     storage_bucket: string;
@@ -48,6 +49,7 @@ export async function fetchFeedItems(supabase: SupabaseClient): Promise<FeedItem
       live_scenario_tag,
       media_assets (
         id,
+        owner_id,
         duration_seconds,
         quiz_template_slug,
         storage_bucket,
