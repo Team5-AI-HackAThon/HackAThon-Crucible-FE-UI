@@ -27,6 +27,43 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
   padding-top:env(safe-area-inset-top,0);
 }
 
+/* Python BE health — top-right inside phone shell */
+.live-be{
+  position:absolute;
+  top:max(6px,env(safe-area-inset-top,0px));
+  right:10px;
+  z-index:250;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 8px 4px 6px;
+  border-radius:999px;
+  background:rgba(0,0,0,.55);
+  border:1px solid var(--border2);
+  backdrop-filter:blur(8px);
+  pointer-events:none;
+  -webkit-user-select:none;user-select:none;
+}
+.live-be-label{
+  font-family:var(--font-dm-mono), monospace;
+  font-size:8px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.live-be-dot{
+  width:7px;height:7px;border-radius:50%;
+  flex-shrink:0;
+  box-shadow:0 0 6px currentColor;
+}
+.live-be-dot--pending{background:#888;color:#888;opacity:.85;animation:liveBePulse 1.2s ease-in-out infinite;}
+.live-be-dot--up{background:var(--sage);color:var(--sage);}
+.live-be-dot--down{background:var(--ember);color:var(--ember);}
+@keyframes liveBePulse{
+  0%,100%{opacity:.5;transform:scale(.92);}
+  50%{opacity:1;transform:scale(1);}
+}
+
 /* ── SCREENS ── */
 .screen{flex:1 1 0%;min-height:0;overflow:hidden;display:none;flex-direction:column;position:relative;}
 .screen.active{display:flex;}
@@ -531,6 +568,17 @@ html,body{height:100%;min-height:100dvh;overflow:hidden;background:#000;font-fam
 
 /* MESSAGING */
 .msg-item{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;}
+button.msg-item{width:100%;text-align:left;font:inherit;color:inherit;background:transparent;border:none;border-bottom:1px solid var(--border);margin:0;}
+.inbox-conv-wrap{border-bottom:1px solid var(--border);}
+.inbox-conv-wrap .msg-item{border-bottom:none;}
+.inbox-thread{padding:12px 18px 18px 70px;background:rgba(0,0,0,.12);}
+.inbox-thread-empty{margin:0;font-size:11px;color:var(--muted);}
+.inbox-bubble{max-width:92%;padding:10px 12px;border-radius:10px;margin-bottom:8px;}
+.inbox-bubble:last-child{margin-bottom:0;}
+.inbox-bubble-body{margin:0;font-size:12px;line-height:1.45;color:var(--paper);white-space:pre-wrap;word-break:break-word;}
+.inbox-bubble-meta{margin-top:6px;font-family:var(--font-dm-mono), monospace;font-size:8px;color:var(--muted);opacity:.85;}
+.inbox-bubble--them{margin-right:auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);}
+.inbox-bubble--me{margin-left:auto;background:rgba(229,67,26,.18);border:1px solid rgba(229,67,26,.35);}
 .msg-av{width:44px;height:44px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-cormorant), serif;font-size:20px;font-weight:700;color:white;}
 .msg-content{flex:1;min-width:0;}
 .msg-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px;}

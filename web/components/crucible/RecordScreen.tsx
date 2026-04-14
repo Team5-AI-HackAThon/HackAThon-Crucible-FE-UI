@@ -4,12 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { fetchOwnerMediaWithSignedUrls, formatDuration, type OwnerMediaWithUrl } from "@/lib/data/mediaAssets";
 import { getCameraStream, startMediaRecorder } from "@/lib/media/recorder";
-import {
-  deleteMediaAsset,
-  publishMediaAsset,
-  uploadRecordedVideo,
-  type QuizSlug,
-} from "@/lib/media/videoUpload";
+import { deleteMediaAsset, publishMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 const QUIZ_PROMPTS = {
@@ -125,6 +120,10 @@ export function RecordScreen({
   const [lastMediaId, setLastMediaId] = useState<string | null>(null);
   const [published, setPublished] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
+  /** Set after successful `submit-async`; cleared when job reaches done/failed or user discards. */
+  const [sentimentPollId, setSentimentPollId] = useState<string | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
+  const [analysisErr, setAnalysisErr] = useState<string | null>(null);
   const [libraryItems, setLibraryItems] = useState<OwnerMediaWithUrl[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryVersion, setLibraryVersion] = useState(0);
@@ -177,6 +176,53 @@ export function RecordScreen({
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary, libraryVersion]);
+
+  useEffect(() => {
+    if (!sentimentPollId) return;
+    let alive = true;
+    let intervalId: number | undefined;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/sentiment/status/${encodeURIComponent(sentimentPollId)}`, {
+          cache: "no-store",
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          job_status?: string;
+          job_error?: string;
+          error?: string;
+        };
+        if (!alive) return;
+        if (!res.ok) {
+          setAnalysisErr(typeof j.error === "string" ? j.error : "Could not load analysis status.");
+          setSentimentPollId(null);
+          return;
+        }
+        const job = typeof j.job_status === "string" ? j.job_status : "";
+        setAnalysisStatus(job || null);
+        if (job === "failed" && typeof j.job_error === "string" && j.job_error.trim()) {
+          setAnalysisErr(j.job_error.trim());
+        } else if (job !== "failed") {
+          setAnalysisErr(null);
+        }
+        if (job === "done" || job === "failed") {
+          setSentimentPollId(null);
+        }
+      } catch {
+        if (alive) {
+          setAnalysisErr("Analysis status unreachable.");
+          setSentimentPollId(null);
+        }
+      }
+    };
+
+    void poll();
+    intervalId = window.setInterval(() => void poll(), 5000);
+    return () => {
+      alive = false;
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    };
+  }, [sentimentPollId]);
 
   useEffect(() => {
     const v = liveVideoRef.current;
@@ -251,6 +297,9 @@ export function RecordScreen({
     setLastMediaId(null);
     setPublished(false);
     setUploadErr(null);
+    setSentimentPollId(null);
+    setAnalysisStatus(null);
+    setAnalysisErr(null);
     setSecs(0);
   }
 
@@ -260,6 +309,9 @@ export function RecordScreen({
     setLastMediaId(null);
     setPublished(false);
     setUploadErr(null);
+    setSentimentPollId(null);
+    setAnalysisStatus(null);
+    setAnalysisErr(null);
   }
 
   function startRecording() {
@@ -271,6 +323,9 @@ export function RecordScreen({
     setLastMediaId(null);
     setPublished(false);
     setUploadErr(null);
+    setSentimentPollId(null);
+    setAnalysisStatus(null);
+    setAnalysisErr(null);
     setSecs(0);
     const { recorder, blobPromise } = startMediaRecorder(stream);
     recorderRef.current = recorder;
@@ -286,16 +341,64 @@ export function RecordScreen({
     }
     setUploading(true);
     setUploadErr(null);
+    setAnalysisErr(null);
+    setAnalysisStatus(null);
+    setSentimentPollId(null);
     try {
-      const { mediaId } = await uploadRecordedVideo({
-        supabase,
-        userId,
-        projectId,
-        blob: recordedBlob,
-        durationSeconds: Math.min(secs, MAX_SECS) || 1,
-        quizTemplateSlug: quizKeyToSlug(quizKey),
-      });
+      const ext = recordedBlob.type.includes("webm")
+        ? "webm"
+        : recordedBlob.type.includes("mp4")
+          ? "mp4"
+          : "webm";
+      const fd = new FormData();
+      fd.append(
+        "file",
+        new File([recordedBlob], `recording.${ext}`, {
+          type: recordedBlob.type || "video/webm",
+        }),
+      );
+      if (projectId) fd.append("project_id", projectId);
+      fd.append("media_kind", "video");
+
+      const res = await fetch("/api/sentiment/submit-async", { method: "POST", body: fd });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        media_asset_id?: string;
+        sentiment_output_id?: string;
+        job_status?: string;
+      };
+
+      if (!res.ok) {
+        setUploadErr(typeof j.error === "string" ? j.error : "Upload to analysis service failed.");
+        return;
+      }
+
+      const mediaId = j.media_asset_id;
+      const sentimentId = j.sentiment_output_id;
+      if (!mediaId || !sentimentId) {
+        setUploadErr("Unexpected response from analysis service.");
+        return;
+      }
+
       setLastMediaId(mediaId);
+      setSentimentPollId(sentimentId);
+      setAnalysisStatus(typeof j.job_status === "string" ? j.job_status : "queued");
+
+      const dur = Math.round(Math.min(secs, MAX_SECS) || 1);
+      const { error: patchErr } = await supabase
+        .from("media_assets")
+        .update({
+          quiz_template_slug: quizKeyToSlug(quizKey),
+          duration_seconds: dur,
+          metadata: { source: "record_tab_web", sentiment_async: true },
+        })
+        .eq("id", mediaId)
+        .eq("owner_id", userId);
+
+      if (patchErr) {
+        console.warn("uploadClip: metadata patch", patchErr);
+      }
+
       setLibraryVersion((v) => v + 1);
     } catch (e) {
       setUploadErr(e instanceof Error ? e.message : "Upload failed.");
@@ -425,6 +528,25 @@ export function RecordScreen({
         )}
         {uploadErr && (
           <p style={{ color: "var(--ember)", fontSize: 12, marginBottom: 10 }}>{uploadErr}</p>
+        )}
+        {(analysisStatus || analysisErr) && (
+          <p
+            style={{
+              color:
+                analysisStatus === "done"
+                  ? "var(--sage)"
+                  : analysisErr || analysisStatus === "failed"
+                    ? "var(--ember)"
+                    : "var(--muted)",
+              fontSize: 12,
+              marginBottom: 10,
+              lineHeight: 1.45,
+            }}
+          >
+            <strong style={{ color: "var(--paper)" }}>Video intelligence</strong>
+            {analysisStatus ? ` · ${analysisStatus}` : ""}
+            {analysisErr ? ` — ${analysisErr}` : ""}
+          </p>
         )}
 
         <div

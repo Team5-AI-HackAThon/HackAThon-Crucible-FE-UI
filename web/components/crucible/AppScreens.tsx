@@ -15,7 +15,7 @@ import {
   type FounderProjectOption,
 } from "@/lib/data/feed";
 import { fetchOwnerMediaList, formatDuration, type OwnerMediaRow } from "@/lib/data/mediaAssets";
-import { fetchInboxPreviews, type InboxPreview } from "@/lib/data/inbox";
+import type { InboxPreview } from "@/lib/data/inbox";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 const FEED_CHIPS = ["All", "🔥 Trending", "Seed", "AI / ML", "Climate"] as const;
@@ -903,35 +903,97 @@ const INBOX_AV_GRADS = [
   "linear-gradient(135deg,#1a6fa8,#00c4ff)",
 ] as const;
 
+function inboxBubbleTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+async function fetchInboxList(): Promise<InboxPreview[]> {
+  const res = await fetch("/api/inbox/conversations", { credentials: "same-origin" });
+  const data = (await res.json()) as { conversations?: InboxPreview[]; error?: string };
+  if (!res.ok) {
+    throw new Error(data.error ?? res.statusText);
+  }
+  return data.conversations ?? [];
+}
+
 export function InboxScreen({ firstName, userId }: { firstName: string; userId: string }) {
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
   const [rows, setRows] = useState<InboxPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [seedHint, setSeedHint] = useState<string | null>(null);
+  const [seedBusy, setSeedBusy] = useState(false);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const supabase = getSupabaseBrowser();
-    if (!supabase || !userId) {
+    if (!userId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     setLoadErr(null);
-    void fetchInboxPreviews(supabase, userId)
-      .then((r) => {
-        if (!cancelled) setRows(r);
-      })
-      .catch((e: unknown) => {
+    setSeedHint(null);
+
+    void (async () => {
+      try {
+        let list = await fetchInboxList();
+        if (!cancelled && list.length === 0) {
+          const seed = await fetch("/api/inbox/ensure-demo-thread", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          const body = (await seed.json()) as { error?: string; hint?: string };
+          if (seed.ok) {
+            list = await fetchInboxList();
+          } else if (!cancelled) {
+            const line = [body.error, body.hint].filter(Boolean).join(" ");
+            setSeedHint(line || `Could not create sample thread (${seed.status}).`);
+          }
+        }
+        if (!cancelled) setRows(list);
+      } catch (e: unknown) {
         if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Could not load inbox.");
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, [userId]);
+
+  const trySampleThread = () => {
+    setSeedBusy(true);
+    setSeedHint(null);
+    void (async () => {
+      try {
+        let list = await fetchInboxList();
+        if (list.length === 0) {
+          const seed = await fetch("/api/inbox/ensure-demo-thread", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          const body = (await seed.json()) as { error?: string; hint?: string };
+          if (seed.ok) {
+            list = await fetchInboxList();
+          } else {
+            setSeedHint([body.error, body.hint].filter(Boolean).join(" ") || `Request failed (${seed.status}).`);
+          }
+        }
+        setRows(list);
+      } catch (e: unknown) {
+        setLoadErr(e instanceof Error ? e.message : "Could not load inbox.");
+      } finally {
+        setSeedBusy(false);
+      }
+    })();
+  };
 
   return (
     <>
@@ -950,34 +1012,99 @@ export function InboxScreen({ firstName, userId }: { firstName: string; userId: 
           <p style={{ color: "var(--ember)", fontSize: 11, marginBottom: 12 }}>{loadErr}</p>
         )}
         {!loading &&
-          rows.map((row, i) => (
-            <div key={row.conversationId} className="msg-item">
-              <div
-                className="msg-av"
-                style={{ background: INBOX_AV_GRADS[i % INBOX_AV_GRADS.length] }}
-              >
-                {row.avatarLetter}
-              </div>
-              <div className="msg-content">
-                <div className="msg-top">
-                  <div className="msg-name">
-                    {row.counterpartyName}
-                    {row.projectLabel ? ` · ${row.projectLabel}` : ""}
+          rows.map((row, i) => {
+            const expanded = openThreadId === row.conversationId;
+            return (
+              <div key={row.conversationId} className="inbox-conv-wrap">
+                <button
+                  type="button"
+                  className="msg-item"
+                  aria-expanded={expanded}
+                  onClick={() =>
+                    setOpenThreadId((id) => (id === row.conversationId ? null : row.conversationId))
+                  }
+                >
+                  <div
+                    className="msg-av"
+                    style={{ background: INBOX_AV_GRADS[i % INBOX_AV_GRADS.length] }}
+                  >
+                    {row.avatarLetter}
                   </div>
-                  <div className="msg-time">{row.timeLabel}</div>
-                </div>
-                <div className="msg-preview">{row.preview}</div>
+                  <div className="msg-content">
+                    <div className="msg-top">
+                      <div className="msg-name">
+                        {row.counterpartyName}
+                        {row.projectLabel ? ` · ${row.projectLabel}` : ""}
+                      </div>
+                      <div className="msg-time">{row.timeLabel}</div>
+                    </div>
+                    <div className="msg-preview">{row.preview}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    {row.unread ? <div className="msg-unread" /> : null}
+                  </div>
+                </button>
+                {expanded ? (
+                  <div className="inbox-thread" role="region" aria-label={`Messages with ${row.counterpartyName}`}>
+                    {row.threadMessages.length === 0 ? (
+                      <p className="inbox-thread-empty">No messages in this thread.</p>
+                    ) : (
+                      row.threadMessages.map((m, mi) => {
+                        const mine = m.sender_id === userId;
+                        return (
+                          <div
+                            key={m.id ?? `${m.created_at}-${mi}`}
+                            className={`inbox-bubble${mine ? " inbox-bubble--me" : " inbox-bubble--them"}`}
+                          >
+                            <p className="inbox-bubble-body">{m.body}</p>
+                            <div className="inbox-bubble-meta">{inboxBubbleTime(m.created_at)}</div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : null}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                {row.unread ? <div className="msg-unread" /> : null}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         {!loading && rows.length === 0 && !loadErr && (
-          <p style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-            No conversations yet. After the inbox seed migration, sign in as a feed demo user to see sample
-            threads.
-          </p>
+          <div style={{ padding: "0 4px" }}>
+            <p style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
+              No conversations yet. With your own Google account, run{" "}
+              <code style={{ fontSize: 11 }}>supabase/manual/seed_inbox_only_counterparties.sql</code> in the
+              Supabase SQL Editor (minimal demo VC + founder), then tap{" "}
+              <strong style={{ fontWeight: 600 }}>Create sample thread</strong>. Or use the full feed seed
+              migration <code style={{ fontSize: 11 }}>20250406140000_seed_feed_items.sql</code>.
+            </p>
+            {seedHint ? (
+              <p style={{ color: "var(--ember)", fontSize: 11, lineHeight: 1.45, marginBottom: 12 }}>
+                {seedHint}
+                {seedHint.includes("disabled") ? (
+                  <>
+                    {" "}
+                    Add <code style={{ fontSize: 10 }}>CRUCIBLE_ENABLE_INBOX_DEMO_SEED=true</code> to{" "}
+                    <code style={{ fontSize: 10 }}>.env.local</code> if you are not running{" "}
+                    <code style={{ fontSize: 10 }}>next dev</code>.
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="ob-cta"
+              style={{
+                width: "100%",
+                maxWidth: 280,
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,.18)",
+                fontSize: 12,
+              }}
+              disabled={seedBusy}
+              onClick={() => trySampleThread()}
+            >
+              {seedBusy ? "Working…" : "Create sample thread"}
+            </button>
+          </div>
         )}
         <div className="spacer" />
       </div>

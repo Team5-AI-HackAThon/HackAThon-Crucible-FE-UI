@@ -17,6 +17,7 @@ import {
 import { FounderOnboarding, InvestorOnboarding, RoleSelectScreen } from "./Onboarding";
 import type { Phase, Role, Tab } from "./types";
 import { VideoModal } from "./VideoModal";
+import { LiveBeIndicator } from "./LiveBeIndicator";
 
 function supabaseEnvConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -180,6 +181,7 @@ export function CrucibleApp() {
 
   return (
     <div className="shell">
+      {phase !== "loading" ? <LiveBeIndicator /> : null}
       {phase === "loading" && (
         <div className="screen active" style={{ justifyContent: "center", alignItems: "center" }}>
           <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>
@@ -254,7 +256,9 @@ export function CrucibleApp() {
           </div>
 
           <div className={`screen${tab === "msg" ? " active" : ""}`}>
-            <InboxScreen firstName={firstName} userId={session.user.id} />
+            {tab === "msg" ? (
+              <InboxScreen key={session.user.id} firstName={firstName} userId={session.user.id} />
+            ) : null}
           </div>
 
           <nav className="bnav">
