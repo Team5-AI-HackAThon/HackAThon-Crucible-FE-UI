@@ -1,7 +1,7 @@
 "use client";
 
 import type { Role } from "./types";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import {
   attachSignedUrlsToFeedItems,
@@ -29,6 +29,8 @@ type FeedProps = {
   onOpenModal: () => void;
   firstName: string;
   userId: string;
+  /** Bumps when another screen (e.g. Record) publishes so the feed refetches. */
+  feedRefreshNonce?: number;
 };
 
 const GRADS = ["g1", "g2", "g3"] as const;
@@ -306,7 +308,7 @@ function FeedAddModal({
   );
 }
 
-export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) {
+export function FeedScreen({ role, onOpenModal, firstName, userId, feedRefreshNonce = 0 }: FeedProps) {
   const [chip, setChip] = useState(0);
   const [items, setItems] = useState<FeedItemRowWithPlayback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,6 +318,12 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
 
   const badge = role === "founder" ? "Founder View" : "VC View";
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
+
+  /** Single primitive so useEffect deps stay a fixed-length tuple (avoids React "dependency array changed size" in dev). */
+  const feedLoadVersion = useMemo(
+    () => `${feedKey}:${feedRefreshNonce}`,
+    [feedKey, feedRefreshNonce],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -340,7 +348,7 @@ export function FeedScreen({ role, onOpenModal, firstName, userId }: FeedProps) 
     return () => {
       cancelled = true;
     };
-  }, [userId, feedKey]);
+  }, [userId, feedLoadVersion]);
 
   const liveLine =
     items[0]?.live_scenario_tag ??

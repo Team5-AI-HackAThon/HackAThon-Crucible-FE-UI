@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { fetchOwnerMediaWithSignedUrls, formatDuration, type OwnerMediaWithUrl } from "@/lib/data/mediaAssets";
 import { getCameraStream, startMediaRecorder } from "@/lib/media/recorder";
-import { deleteMediaAsset, publishMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
+import { deleteMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 const QUIZ_PROMPTS = {
@@ -103,10 +103,13 @@ export function RecordScreen({
   onGoProfile,
   firstName,
   userId,
+  onPublishedToFeed,
 }: {
   onGoProfile: () => void;
   firstName: string;
   userId: string;
+  /** Called after a clip is added to `feed_items` so the Feed tab can refetch. */
+  onPublishedToFeed?: () => void;
 }) {
   const [quizKey, setQuizKey] = useState<QuizKey>("p1");
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -408,14 +411,27 @@ export function RecordScreen({
   }
 
   async function submitToFeed() {
-    const supabase = getSupabaseBrowser();
-    if (!supabase || !lastMediaId) return;
+    if (!lastMediaId) return;
+    if (!projectId) {
+      setUploadErr("Create a project on Profile first — the feed needs a company to attach this clip to.");
+      return;
+    }
     setUploading(true);
     setUploadErr(null);
     try {
-      await publishMediaAsset(supabase, lastMediaId);
+      const res = await fetch("/api/feed/from-recording", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaAssetId: lastMediaId, projectId }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string; alreadyOnFeed?: boolean };
+      if (!res.ok) {
+        setUploadErr(typeof j.error === "string" ? j.error : "Could not add to feed.");
+        return;
+      }
       setPublished(true);
       setLibraryVersion((v) => v + 1);
+      onPublishedToFeed?.();
     } catch (e) {
       setUploadErr(e instanceof Error ? e.message : "Could not publish.");
     } finally {

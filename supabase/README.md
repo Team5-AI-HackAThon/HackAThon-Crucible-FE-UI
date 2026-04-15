@@ -16,6 +16,11 @@ SQL migrations model the founder/investor flows, PRD data needs, and your prelim
    - `migrations/20250406140000_seed_feed_items.sql` (**Feed tab demo**: email/password users + `projects` + published `media_assets` + `feed_items`)
    - `migrations/20250406150000_feed_public_read_policies.sql` (**Feed**: any authenticated user can read `feed_items` and joined project/media rows on the feed)
    - `migrations/20250406160000_seed_inbox_conversations.sql` (**Inbox**: `profiles` RLS for messaging partners + demo `conversations` / `messages`; requires feed demo users)
+   - `migrations/20250406170000_seed_remaining_tables_demo.sql` (extra demo data)
+   - `migrations/20250406190000_conversations_chat_json.sql` (optional `conversations.chat_json` snapshot)
+   - `migrations/20250406180000_feed_items_delete_owner.sql` (**Feed**: media owner may `DELETE` their `feed_items` row)
+   - `migrations/20250406200000_storage_pitch_uploads_azure_read.sql` (**Python/Azure**: anon `SELECT` on `pitch_uploads/%` + bucket `public`; see `Reference/prompt-python-media-url-signed-urls.md` for signed-URL preference)
+   - `migrations/20250406210000_storage_select_published_on_feed.sql` (**Feed tab video**: any signed-in user can `createSignedUrl` for objects tied to published `feed_items`)
 
 ### Feed demo seed (optional)
 

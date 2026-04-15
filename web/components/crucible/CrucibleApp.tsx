@@ -36,6 +36,7 @@ export function CrucibleApp() {
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthStartError, setOauthStartError] = useState<string | null>(null);
   const [addProjectKey, setAddProjectKey] = useState(0);
+  const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
 
   const loadAppState = useCallback(async (supabase: SupabaseClient, sess: Session) => {
     const user = sess.user;
@@ -229,6 +230,7 @@ export function CrucibleApp() {
               firstName={firstName}
               userId={session.user.id}
               onOpenModal={() => setModalOpen(true)}
+              feedRefreshNonce={feedRefreshNonce}
             />
           </div>
 
@@ -241,6 +243,7 @@ export function CrucibleApp() {
               userId={session.user.id}
               onGoProfile={() => switchTab("founder")}
               firstName={firstName}
+              onPublishedToFeed={() => setFeedRefreshNonce((n) => n + 1)}
             />
           </div>
 
