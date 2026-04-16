@@ -21,6 +21,7 @@ SQL migrations model the founder/investor flows, PRD data needs, and your prelim
    - `migrations/20250406180000_feed_items_delete_owner.sql` (**Feed**: media owner may `DELETE` their `feed_items` row)
    - `migrations/20250406200000_storage_pitch_uploads_azure_read.sql` (**Python/Azure**: anon `SELECT` on `pitch_uploads/%` + bucket `public`; see `Reference/prompt-python-media-url-signed-urls.md` for signed-URL preference)
    - `migrations/20250406210000_storage_select_published_on_feed.sql` (**Feed tab video**: any signed-in user can `createSignedUrl` for objects tied to published `feed_items`)
+   - `migrations/20250406220000_sentiment_outputs_is_processed_realtime.sql` (**Record AI button**: `sentiment_outputs.is_processed`; enable Realtime on this table in Dashboard for instant updates)
 
 ### Feed demo seed (optional)
 

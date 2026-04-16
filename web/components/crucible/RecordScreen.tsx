@@ -1,8 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
-import { fetchOwnerMediaWithSignedUrls, formatDuration, type OwnerMediaWithUrl } from "@/lib/data/mediaAssets";
+import {
+  fetchOwnerMediaWithSignedUrls,
+  formatDuration,
+  latestSentimentOutput,
+  type OwnerMediaWithUrl,
+} from "@/lib/data/mediaAssets";
 import { getCameraStream, startMediaRecorder } from "@/lib/media/recorder";
 import { deleteMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
 import { AppScreenHeader } from "./AppScreenHeader";
@@ -49,14 +54,28 @@ function useMatchMedia(query: string): boolean {
   return matches;
 }
 
+type AiPhase = "idle" | "loading" | "done";
+
 function MediaThumb({
   item,
   onOpen,
+  onLibraryRefresh,
 }: {
   item: OwnerMediaWithUrl;
   onOpen: () => void;
+  onLibraryRefresh: () => void | Promise<void>;
 }) {
   const vref = useRef<HTMLVideoElement>(null);
+  const initialDone = Boolean(latestSentimentOutput(item)?.is_processed);
+  const [aiPhase, setAiPhase] = useState<AiPhase>(initialDone ? "done" : "idle");
+  const [aiErr, setAiErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (latestSentimentOutput(item)?.is_processed) {
+      setAiPhase("done");
+    }
+  }, [item]);
+
   useEffect(() => {
     const v = vref.current;
     if (!v || !item.signedUrl) return;
@@ -71,31 +90,139 @@ function MediaThumb({
     return () => v.removeEventListener("loadeddata", onData);
   }, [item.signedUrl]);
 
+  useEffect(() => {
+    if (aiPhase !== "loading") return;
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`sentiment-${item.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sentiment_outputs",
+          filter: `media_asset_id=eq.${item.id}`,
+        },
+        (payload) => {
+          const row = payload.new as { is_processed?: boolean };
+          if (row?.is_processed) {
+            setAiPhase("done");
+            void onLibraryRefresh();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [aiPhase, item.id, onLibraryRefresh]);
+
+  useEffect(() => {
+    if (aiPhase !== "loading") return;
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+
+    const poll = async () => {
+      const { data, error } = await supabase
+        .from("sentiment_outputs")
+        .select("is_processed")
+        .eq("media_asset_id", item.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return;
+      if (data?.is_processed) {
+        setAiPhase("done");
+        void onLibraryRefresh();
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), 4000);
+    return () => window.clearInterval(id);
+  }, [aiPhase, item.id, onLibraryRefresh]);
+
+  async function onAiClick(e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setAiErr(null);
+    if (aiPhase === "loading" || aiPhase === "done") return;
+    setAiPhase("loading");
+    try {
+      const res = await fetch("/api/sentiment/submit-media-asset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ media_asset_id: item.id }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setAiPhase("idle");
+        setAiErr(typeof j.error === "string" ? j.error : `Request failed (${res.status})`);
+        return;
+      }
+    } catch {
+      setAiPhase("idle");
+      setAiErr("Could not reach analysis service.");
+    }
+  }
+
   return (
-    <button type="button" className="record-lib-thumb" onClick={onOpen}>
-      {item.signedUrl ? (
-        <video
-          ref={vref}
-          className="record-lib-thumb-vid"
-          src={item.signedUrl}
-          muted
-          playsInline
-          preload="metadata"
-        />
-      ) : (
-        <div className="record-lib-thumb-vid" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          …
+    <div className="record-lib-thumb-wrap">
+      <button type="button" className="record-lib-thumb" onClick={onOpen}>
+        {item.signedUrl ? (
+          <video
+            ref={vref}
+            className="record-lib-thumb-vid"
+            src={item.signedUrl}
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <div
+            className="record-lib-thumb-vid"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            …
+          </div>
+        )}
+        <div className="record-lib-thumb-meta">
+          <div className={`record-lib-thumb-badge${item.published_at ? "" : " draft"}`}>
+            {item.published_at ? "Published" : "Draft"}
+          </div>
+          <div>
+            {formatDuration(item.duration_seconds)} · {quizSlugLabel(item.quiz_template_slug)}
+          </div>
         </div>
-      )}
-      <div className="record-lib-thumb-meta">
-        <div className={`record-lib-thumb-badge${item.published_at ? "" : " draft"}`}>
-          {item.published_at ? "Published" : "Draft"}
+      </button>
+      <button
+        type="button"
+        className={`record-thumb-ai${aiPhase === "done" ? " record-thumb-ai--done" : ""}${aiPhase === "loading" ? " record-thumb-ai--loading" : ""}`}
+        title={
+          aiPhase === "done"
+            ? "Video intelligence complete"
+            : "Run video intelligence (sends media_assets to analysis service)"
+        }
+        aria-label="Video intelligence"
+        onClick={onAiClick}
+      >
+        {aiPhase === "loading" ? <span className="record-thumb-ai-spin" aria-hidden /> : null}
+        {aiPhase === "done" ? (
+          <span className="record-thumb-ai-check" aria-hidden>
+            {"\u2713"}
+          </span>
+        ) : null}
+        {aiPhase === "idle" ? <span aria-hidden>AI</span> : null}
+      </button>
+      {aiErr ? (
+        <div className="record-thumb-ai-err" title={aiErr}>
+          {aiErr.length > 40 ? `${aiErr.slice(0, 40)}…` : aiErr}
         </div>
-        <div>
-          {formatDuration(item.duration_seconds)} · {quizSlugLabel(item.quiz_template_slug)}
-        </div>
-      </div>
-    </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -533,7 +660,12 @@ export function RecordScreen({
         {!libraryLoading && libraryItems.length > 0 && (
           <div className="record-lib-grid" style={{ padding: "0 20px" }}>
             {libraryItems.map((item) => (
-              <MediaThumb key={item.id} item={item} onOpen={() => setReviewItem(item)} />
+              <MediaThumb
+                key={item.id}
+                item={item}
+                onOpen={() => setReviewItem(item)}
+                onLibraryRefresh={loadLibrary}
+              />
             ))}
           </div>
         )}

@@ -9,3 +9,9 @@ export function getCruciblePythonBeBaseUrl(): string {
     DEFAULT_CRUCIBLE_PYTHON_BE_URL;
   return raw.replace(/\/$/, "");
 }
+
+/** JSON body POST for existing media row (default matches Render app `/submit-async`). */
+export function getPythonSubmitMediaAssetPath(): string {
+  const p = process.env.CRUCIBLE_PYTHON_SUBMIT_MEDIA_PATH ?? "/submit-async";
+  return p.startsWith("/") ? p : `/${p}`;
+}

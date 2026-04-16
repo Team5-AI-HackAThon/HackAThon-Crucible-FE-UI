@@ -616,6 +616,44 @@ button.msg-item{width:100%;text-align:left;font:inherit;color:inherit;background
 .record-lib-thumb-meta{padding:8px 10px 10px;font-family:var(--font-dm-mono), monospace;font-size:9px;color:var(--muted);letter-spacing:.06em;line-height:1.35;}
 .record-lib-thumb-badge{font-size:8px;text-transform:uppercase;color:var(--sage);margin-bottom:4px;letter-spacing:.1em;}
 .record-lib-thumb-badge.draft{color:var(--gold);}
+.record-lib-thumb-wrap{
+  position:relative;
+  width:calc(50% - 5px);
+  min-width:132px;
+  max-width:200px;
+}
+@media (min-width:400px){.record-lib-thumb-wrap{width:calc(33.333% - 7px);}}
+.record-lib-thumb-wrap .record-lib-thumb{width:100%;max-width:none;}
+.record-thumb-ai{
+  position:absolute;top:8px;right:8px;z-index:4;
+  width:30px;height:30px;border-radius:50%;
+  padding:0;margin:0;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-dm-mono), monospace;font-size:7px;font-weight:700;
+  letter-spacing:.02em;color:var(--paper);
+  background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+  -webkit-appearance:none;appearance:none;
+}
+.record-thumb-ai:hover{background:rgba(30,30,30,.9);}
+.record-thumb-ai--done{
+  background:var(--sage);color:#0a0a0a;border-color:rgba(90,138,106,.6);
+}
+.record-thumb-ai--loading{cursor:wait;}
+.record-thumb-ai-check{font-size:13px;line-height:1;font-weight:800;}
+.record-thumb-ai-spin{
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.25);
+  border-top-color:var(--paper);
+  animation:recordAiSpin .7s linear infinite;
+}
+@keyframes recordAiSpin{to{transform:rotate(360deg);}}
+.record-thumb-ai-err{
+  position:absolute;bottom:4px;left:4px;right:4px;z-index:4;
+  font-family:var(--font-dm-mono), monospace;font-size:7px;color:var(--ember);
+  background:rgba(0,0,0,.78);padding:3px 5px;border-radius:3px;
+  pointer-events:none;line-height:1.2;max-height:2.6em;overflow:hidden;
+}
 .record-review-actions{display:flex;gap:10px;padding:0 20px 20px;}
 .record-review-actions .btn-keep{
   flex:1;padding:12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--paper);
