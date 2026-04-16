@@ -8,9 +8,18 @@ import {
   latestSentimentOutput,
   type OwnerMediaWithUrl,
 } from "@/lib/data/mediaAssets";
+import { parseSubmitAsyncSseData, type SubmitAsyncJson202Response } from "@/lib/sentiment/submitAsyncTypes";
 import { getCameraStream, startMediaRecorder } from "@/lib/media/recorder";
 import { deleteMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
 import { AppScreenHeader } from "./AppScreenHeader";
+
+function terminalFromStatusPayload(j: Record<string, unknown>): "done" | "failed" | null {
+  const job = typeof j.job_status === "string" ? j.job_status : "";
+  if (job === "done") return "done";
+  if (job === "failed") return "failed";
+  if (j.is_processed === true) return "done";
+  return null;
+}
 
 const QUIZ_PROMPTS = {
   p1: '"Your team is on the 48th floor of the Santander Building, Downtown Dallas. Floors 20–30 are on fire. How do you get out?"',
@@ -66,9 +75,28 @@ function MediaThumb({
   onLibraryRefresh: () => void | Promise<void>;
 }) {
   const vref = useRef<HTMLVideoElement>(null);
+  const jobDoneRef = useRef(false);
   const initialDone = Boolean(latestSentimentOutput(item)?.is_processed);
   const [aiPhase, setAiPhase] = useState<AiPhase>(initialDone ? "done" : "idle");
   const [aiErr, setAiErr] = useState<string | null>(null);
+  /** From `POST /submit-async` 202 `sentiment_output_id` — enables BFF SSE + status poll. */
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+
+  const markJobComplete = useCallback(() => {
+    if (jobDoneRef.current) return;
+    jobDoneRef.current = true;
+    setAiPhase("done");
+    setActiveJobId(null);
+    void onLibraryRefresh();
+  }, [onLibraryRefresh]);
+
+  const markJobFailed = useCallback((msg?: string) => {
+    if (jobDoneRef.current) return;
+    jobDoneRef.current = true;
+    setAiPhase("idle");
+    setActiveJobId(null);
+    setAiErr(msg?.trim() || "Analysis failed.");
+  }, []);
 
   useEffect(() => {
     if (latestSentimentOutput(item)?.is_processed) {
@@ -91,6 +119,56 @@ function MediaThumb({
   }, [item.signedUrl]);
 
   useEffect(() => {
+    if (aiPhase !== "loading" || !activeJobId) return;
+    jobDoneRef.current = false;
+    const url = `/api/sentiment/submit-async/events/${encodeURIComponent(activeJobId)}`;
+    const es = new EventSource(url);
+    es.onmessage = (ev) => {
+      const j = parseSubmitAsyncSseData(ev.data);
+      if (!j) return;
+      if (j.stage === "done") {
+        markJobComplete();
+        es.close();
+      } else if (j.stage === "error") {
+        markJobFailed(j.message);
+        es.close();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+    };
+    return () => es.close();
+  }, [aiPhase, activeJobId, markJobComplete, markJobFailed]);
+
+  useEffect(() => {
+    if (aiPhase !== "loading" || !activeJobId) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/sentiment/status/${encodeURIComponent(activeJobId)}`, {
+          cache: "no-store",
+        });
+        const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!alive || jobDoneRef.current) return;
+        const t = terminalFromStatusPayload(j);
+        if (t === "done") {
+          markJobComplete();
+        } else if (t === "failed") {
+          markJobFailed(typeof j.job_error === "string" ? j.job_error : undefined);
+        }
+      } catch {
+        /* keep polling */
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 6000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [aiPhase, activeJobId, markJobComplete, markJobFailed]);
+
+  useEffect(() => {
     if (aiPhase !== "loading") return;
     const supabase = getSupabaseBrowser();
     if (!supabase) return;
@@ -108,8 +186,7 @@ function MediaThumb({
         (payload) => {
           const row = payload.new as { is_processed?: boolean };
           if (row?.is_processed) {
-            setAiPhase("done");
-            void onLibraryRefresh();
+            markJobComplete();
           }
         },
       )
@@ -118,10 +195,10 @@ function MediaThumb({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [aiPhase, item.id, onLibraryRefresh]);
+  }, [aiPhase, item.id, markJobComplete]);
 
   useEffect(() => {
-    if (aiPhase !== "loading") return;
+    if (aiPhase !== "loading" || activeJobId) return;
     const supabase = getSupabaseBrowser();
     if (!supabase) return;
 
@@ -133,36 +210,39 @@ function MediaThumb({
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (error) return;
+      if (error || jobDoneRef.current) return;
       if (data?.is_processed) {
-        setAiPhase("done");
-        void onLibraryRefresh();
+        markJobComplete();
       }
     };
 
     void poll();
-    const id = window.setInterval(() => void poll(), 4000);
+    const id = window.setInterval(() => void poll(), 5000);
     return () => window.clearInterval(id);
-  }, [aiPhase, item.id, onLibraryRefresh]);
+  }, [aiPhase, activeJobId, item.id, markJobComplete]);
 
   async function onAiClick(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
     setAiErr(null);
     if (aiPhase === "loading" || aiPhase === "done") return;
+    jobDoneRef.current = false;
+    setActiveJobId(null);
     setAiPhase("loading");
     try {
       const res = await fetch("/api/sentiment/submit-media-asset", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ media_asset_id: item.id }),
       });
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      const j = (await res.json().catch(() => ({}))) as SubmitAsyncJson202Response & { error?: string };
       if (!res.ok) {
         setAiPhase("idle");
         setAiErr(typeof j.error === "string" ? j.error : `Request failed (${res.status})`);
         return;
       }
+      const sid = typeof j.sentiment_output_id === "string" ? j.sentiment_output_id.trim() : "";
+      setActiveJobId(sid || null);
     } catch {
       setAiPhase("idle");
       setAiErr("Could not reach analysis service.");
@@ -352,6 +432,30 @@ export function RecordScreen({
       alive = false;
       if (intervalId !== undefined) window.clearInterval(intervalId);
     };
+  }, [sentimentPollId]);
+
+  useEffect(() => {
+    if (!sentimentPollId) return;
+    const url = `/api/sentiment/submit-async/events/${encodeURIComponent(sentimentPollId)}`;
+    const es = new EventSource(url);
+    es.onmessage = (ev) => {
+      const j = parseSubmitAsyncSseData(ev.data);
+      if (!j) return;
+      if (j.stage === "done") {
+        setAnalysisStatus("done");
+        setAnalysisErr(null);
+        setSentimentPollId(null);
+        es.close();
+      } else if (j.stage === "error") {
+        setAnalysisErr(j.message || "Analysis failed.");
+        setSentimentPollId(null);
+        es.close();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+    };
+    return () => es.close();
   }, [sentimentPollId]);
 
   useEffect(() => {
