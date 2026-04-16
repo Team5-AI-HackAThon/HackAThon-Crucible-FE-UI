@@ -189,6 +189,7 @@ export function FounderOnboarding({ userId, onSkip, onComplete, variant = "onboa
       }));
       const { error: e2 } = await supabase.from("project_industries").insert(rows);
       if (e2) {
+        await supabase.from("projects").delete().eq("id", project.id).eq("founder_id", userId);
         setErr(e2.message);
         setSaving(false);
         return;

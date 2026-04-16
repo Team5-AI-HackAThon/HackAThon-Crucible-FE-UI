@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
@@ -37,6 +37,8 @@ export function CrucibleApp() {
   const [oauthStartError, setOauthStartError] = useState<string | null>(null);
   const [addProjectKey, setAddProjectKey] = useState(0);
   const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
+  /** After +Project save, return here instead of defaulting to Profile (founder). */
+  const tabBeforeAddProjectRef = useRef<Tab | null>(null);
 
   const loadAppState = useCallback(async (supabase: SupabaseClient, sess: Session) => {
     const user = sess.user;
@@ -137,17 +139,22 @@ export function CrucibleApp() {
   };
 
   const handleOnboardingComplete = async () => {
+    const returnTab = tabBeforeAddProjectRef.current;
+    tabBeforeAddProjectRef.current = null;
     const supabase = getSupabaseBrowser();
     if (!supabase) {
       setPhase("app");
-      if (role === "founder") setTab("founder");
+      if (role === "founder") setTab(returnTab ?? "founder");
       else setTab("feed");
       return;
     }
     const {
       data: { session: next },
     } = await supabase.auth.getSession();
-    if (next) await loadAppState(supabase, next);
+    if (next) {
+      await loadAppState(supabase, next);
+      if (returnTab) setTab(returnTab);
+    }
   };
 
   const handleSkipOnboarding = () => {
@@ -166,6 +173,7 @@ export function CrucibleApp() {
   const switchTab = (key: Tab) => setTab(key);
 
   const openAddProject = () => {
+    tabBeforeAddProjectRef.current = tab;
     setAddProjectKey((k) => k + 1);
     setPhase("add-project");
   };
@@ -211,6 +219,7 @@ export function CrucibleApp() {
           variant="addProject"
           userId={session.user.id}
           onSkip={() => {
+            tabBeforeAddProjectRef.current = null;
             setPhase("app");
             setTab("founder");
           }}
@@ -244,6 +253,7 @@ export function CrucibleApp() {
               onGoProfile={() => switchTab("founder")}
               firstName={firstName}
               onPublishedToFeed={() => setFeedRefreshNonce((n) => n + 1)}
+              onAddProject={role === "founder" ? openAddProject : undefined}
             />
           </div>
 

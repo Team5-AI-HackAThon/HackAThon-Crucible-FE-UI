@@ -654,13 +654,23 @@ button.msg-item{width:100%;text-align:left;font:inherit;color:inherit;background
   background:rgba(0,0,0,.78);padding:3px 5px;border-radius:3px;
   pointer-events:none;line-height:1.2;max-height:2.6em;overflow:hidden;
 }
-.record-review-actions{display:flex;gap:10px;padding:0 20px 20px;}
+.record-review-actions{display:flex;flex-wrap:wrap;gap:10px;padding:0 20px 20px;}
 .record-review-actions .btn-keep{
-  flex:1;padding:12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--paper);
+  flex:1 1 28%;min-width:90px;padding:12px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--paper);
   font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
 }
+.record-review-actions .btn-feed-publish{
+  flex:1 1 36%;min-width:100px;padding:12px;border-radius:8px;border:1px solid rgba(90,138,106,.45);background:var(--sage2);color:var(--sage);
+  font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+}
+.record-review-actions .btn-feed-publish:disabled{opacity:.5;cursor:not-allowed;}
+.record-review-actions .btn-start-ai{
+  flex:1 1 36%;min-width:100px;padding:12px;border-radius:8px;border:1px solid rgba(26,111,168,.45);background:var(--sky2);color:var(--sky);
+  font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+}
+.record-review-actions .btn-start-ai:disabled{opacity:.5;cursor:not-allowed;}
 .record-review-actions .btn-delete{
-  flex:1;padding:12px;border-radius:8px;border:1px solid rgba(229,67,26,.45);background:rgba(229,67,26,.12);color:var(--ember);
+  flex:1 1 28%;min-width:90px;padding:12px;border-radius:8px;border:1px solid rgba(229,67,26,.45);background:rgba(229,67,26,.12);color:var(--ember);
   font-family:var(--font-dm-mono), monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
 }
 .record-review-actions .btn-delete:disabled{opacity:.5;cursor:not-allowed;}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import {
   fetchOwnerMediaWithSignedUrls,
@@ -11,6 +11,7 @@ import {
 import { parseSubmitAsyncSseData, type SubmitAsyncJson202Response } from "@/lib/sentiment/submitAsyncTypes";
 import { getCameraStream, startMediaRecorder } from "@/lib/media/recorder";
 import { deleteMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
+import { fetchFounderProject } from "@/lib/data/onboarding";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 function terminalFromStatusPayload(j: Record<string, unknown>): "done" | "failed" | null {
@@ -30,6 +31,58 @@ const QUIZ_PROMPTS = {
 type QuizKey = keyof typeof QUIZ_PROMPTS;
 
 const MAX_SECS = 300;
+
+/** Shown when publishing to feed requires a `projects` row; paired with Profile +Project flow. */
+const NEED_PROJECT_FOR_FEED_MSG =
+  "Create a project on Profile first — the feed needs a company to attach this clip to.";
+
+function FeedNeedProjectNotice({
+  message,
+  onAddProject,
+  variant,
+}: {
+  message: string;
+  onAddProject?: () => void;
+  variant: "inline" | "modal";
+}): ReactNode {
+  const isNeedProject = message === NEED_PROJECT_FOR_FEED_MSG;
+  const modalErrP = {
+    color: "var(--ember)" as const,
+    fontSize: 11,
+    margin: 0,
+    padding: "0 0 6px 0",
+    lineHeight: 1.4,
+  };
+
+  if (!isNeedProject) {
+    return (
+      <p
+        style={
+          variant === "modal"
+            ? { ...modalErrP, padding: "0 20px 10px" }
+            : { color: "var(--ember)", fontSize: 12, marginBottom: 10, lineHeight: 1.4 }
+        }
+      >
+        {message}
+      </p>
+    );
+  }
+
+  return (
+    <div style={variant === "modal" ? { padding: "0 20px 10px" } : { marginBottom: 10 }}>
+      <p style={variant === "modal" ? modalErrP : { color: "var(--ember)", fontSize: 12, marginBottom: 0, lineHeight: 1.4 }}>
+        {message}
+      </p>
+      {onAddProject ? (
+        <div className="profile-add-project-row" style={{ padding: "0 16px 0" }}>
+          <button type="button" className="profile-add-project-btn" onClick={onAddProject}>
+            +Project
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function quizKeyToSlug(key: QuizKey): QuizSlug {
   if (key === "p1") return "fire_escape";
@@ -311,12 +364,15 @@ export function RecordScreen({
   firstName,
   userId,
   onPublishedToFeed,
+  onAddProject,
 }: {
   onGoProfile: () => void;
   firstName: string;
   userId: string;
   /** Called after a clip is added to `feed_items` so the Feed tab can refetch. */
   onPublishedToFeed?: () => void;
+  /** Founders: same handler as Profile — opens add-project (FounderOnboarding) flow. */
+  onAddProject?: () => void;
 }) {
   const [quizKey, setQuizKey] = useState<QuizKey>("p1");
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -339,6 +395,14 @@ export function RecordScreen({
   const [libraryVersion, setLibraryVersion] = useState(0);
   const [reviewItem, setReviewItem] = useState<OwnerMediaWithUrl | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reviewFeedBusy, setReviewFeedBusy] = useState(false);
+  const [reviewFeedErr, setReviewFeedErr] = useState<string | null>(null);
+  /** True after SSE/status says the review-modal job finished, until DB `is_processed` catches up or modal closes. */
+  const [reviewFeedAiReadyOverride, setReviewFeedAiReadyOverride] = useState(false);
+  const [reviewModalAiJobId, setReviewModalAiJobId] = useState<string | null>(null);
+  const [reviewModalAiLoading, setReviewModalAiLoading] = useState(false);
+  const [reviewModalAiErr, setReviewModalAiErr] = useState<string | null>(null);
+  const reviewModalJobDoneRef = useRef(false);
 
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -352,14 +416,9 @@ export function RecordScreen({
     let cancelled = false;
     const supabase = getSupabaseBrowser();
     if (!supabase || !userId) return;
-    void supabase
-      .from("projects")
-      .select("id")
-      .eq("founder_id", userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setProjectId(data?.id ?? null);
-      });
+    void fetchFounderProject(supabase, userId).then((row) => {
+      if (!cancelled) setProjectId(row?.id ?? null);
+    });
     return () => {
       cancelled = true;
     };
@@ -386,6 +445,174 @@ export function RecordScreen({
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary, libraryVersion]);
+
+  useEffect(() => {
+    if (!reviewItem) {
+      setReviewFeedErr(null);
+      setReviewModalAiJobId(null);
+      setReviewModalAiLoading(false);
+      setReviewModalAiErr(null);
+      reviewModalJobDoneRef.current = false;
+    }
+  }, [reviewItem]);
+
+  useEffect(() => {
+    setReviewFeedAiReadyOverride(false);
+  }, [reviewItem?.id]);
+
+  useEffect(() => {
+    if (!reviewItem?.id) return;
+    const fresh = libraryItems.find((r) => r.id === reviewItem.id);
+    if (fresh) setReviewItem(fresh);
+  }, [libraryItems, reviewItem?.id]);
+
+  const markReviewModalAiComplete = useCallback(() => {
+    if (reviewModalJobDoneRef.current) return;
+    reviewModalJobDoneRef.current = true;
+    setReviewModalAiLoading(false);
+    setReviewModalAiJobId(null);
+    setReviewFeedAiReadyOverride(true);
+    setLibraryVersion((v) => v + 1);
+  }, []);
+
+  const markReviewModalAiFailed = useCallback((msg?: string) => {
+    if (reviewModalJobDoneRef.current) return;
+    reviewModalJobDoneRef.current = true;
+    setReviewModalAiLoading(false);
+    setReviewModalAiJobId(null);
+    setReviewModalAiErr(msg?.trim() || "Analysis failed.");
+  }, []);
+
+  useEffect(() => {
+    if (!reviewModalAiLoading || !reviewModalAiJobId || !reviewItem) return;
+    reviewModalJobDoneRef.current = false;
+    const url = `/api/sentiment/submit-async/events/${encodeURIComponent(reviewModalAiJobId)}`;
+    const es = new EventSource(url);
+    es.onmessage = (ev) => {
+      const j = parseSubmitAsyncSseData(ev.data);
+      if (!j) return;
+      if (j.stage === "done") {
+        markReviewModalAiComplete();
+        es.close();
+      } else if (j.stage === "error") {
+        markReviewModalAiFailed(j.message);
+        es.close();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+    };
+    return () => es.close();
+  }, [reviewModalAiLoading, reviewModalAiJobId, reviewItem?.id, markReviewModalAiComplete, markReviewModalAiFailed]);
+
+  useEffect(() => {
+    if (!reviewModalAiLoading || !reviewModalAiJobId || !reviewItem) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/sentiment/status/${encodeURIComponent(reviewModalAiJobId)}`, {
+          cache: "no-store",
+        });
+        const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!alive || reviewModalJobDoneRef.current) return;
+        const t = terminalFromStatusPayload(j);
+        if (t === "done") {
+          markReviewModalAiComplete();
+        } else if (t === "failed") {
+          markReviewModalAiFailed(typeof j.job_error === "string" ? j.job_error : undefined);
+        }
+      } catch {
+        /* keep polling */
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 6000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [reviewModalAiLoading, reviewModalAiJobId, reviewItem?.id, markReviewModalAiComplete, markReviewModalAiFailed]);
+
+  useEffect(() => {
+    if (!reviewModalAiLoading || !reviewItem) return;
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`sentiment-review-${reviewItem.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sentiment_outputs",
+          filter: `media_asset_id=eq.${reviewItem.id}`,
+        },
+        (payload) => {
+          const row = payload.new as { is_processed?: boolean };
+          if (row?.is_processed) {
+            markReviewModalAiComplete();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [reviewModalAiLoading, reviewItem, markReviewModalAiComplete]);
+
+  useEffect(() => {
+    if (!reviewModalAiLoading || !reviewItem || reviewModalAiJobId) return;
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+
+    const poll = async () => {
+      const { data, error } = await supabase
+        .from("sentiment_outputs")
+        .select("is_processed")
+        .eq("media_asset_id", reviewItem.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || reviewModalJobDoneRef.current) return;
+      if (data?.is_processed) {
+        markReviewModalAiComplete();
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), 5000);
+    return () => window.clearInterval(id);
+  }, [reviewModalAiLoading, reviewModalAiJobId, reviewItem, markReviewModalAiComplete]);
+
+  async function startAiFromReviewModal() {
+    if (!reviewItem) return;
+    if (latestSentimentOutput(reviewItem)?.is_processed) return;
+    reviewModalJobDoneRef.current = false;
+    setReviewFeedAiReadyOverride(false);
+    setReviewModalAiErr(null);
+    setReviewModalAiLoading(true);
+    setReviewModalAiJobId(null);
+    try {
+      const res = await fetch("/api/sentiment/submit-media-asset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ media_asset_id: reviewItem.id }),
+      });
+      const j = (await res.json().catch(() => ({}))) as SubmitAsyncJson202Response & { error?: string };
+      if (!res.ok) {
+        setReviewModalAiLoading(false);
+        setReviewModalAiErr(typeof j.error === "string" ? j.error : `Request failed (${res.status})`);
+        return;
+      }
+      const sid = typeof j.sentiment_output_id === "string" ? j.sentiment_output_id.trim() : "";
+      setReviewModalAiJobId(sid || null);
+    } catch {
+      setReviewModalAiLoading(false);
+      setReviewModalAiErr("Could not reach analysis service.");
+    }
+  }
 
   useEffect(() => {
     if (!sentimentPollId) return;
@@ -644,7 +871,7 @@ export function RecordScreen({
   async function submitToFeed() {
     if (!lastMediaId) return;
     if (!projectId) {
-      setUploadErr("Create a project on Profile first — the feed needs a company to attach this clip to.");
+      setUploadErr(NEED_PROJECT_FOR_FEED_MSG);
       return;
     }
     setUploading(true);
@@ -667,6 +894,42 @@ export function RecordScreen({
       setUploadErr(e instanceof Error ? e.message : "Could not publish.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function publishReviewToFeed() {
+    if (!reviewItem) return;
+    if (reviewItem.published_at) return;
+    const aiDone =
+      Boolean(latestSentimentOutput(reviewItem)?.is_processed) || reviewFeedAiReadyOverride;
+    if (!aiDone) {
+      setReviewFeedErr("Run AI processing first, then publish to the feed.");
+      return;
+    }
+    if (!projectId) {
+      setReviewFeedErr(NEED_PROJECT_FOR_FEED_MSG);
+      return;
+    }
+    setReviewFeedErr(null);
+    setReviewFeedBusy(true);
+    try {
+      const res = await fetch("/api/feed/from-recording", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaAssetId: reviewItem.id, projectId }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string; alreadyOnFeed?: boolean };
+      if (!res.ok) {
+        setReviewFeedErr(typeof j.error === "string" ? j.error : "Could not add to feed.");
+        return;
+      }
+      setLibraryVersion((v) => v + 1);
+      onPublishedToFeed?.();
+      setReviewItem(null);
+    } catch (e) {
+      setReviewFeedErr(e instanceof Error ? e.message : "Could not publish.");
+    } finally {
+      setReviewFeedBusy(false);
     }
   }
 
@@ -778,9 +1041,9 @@ export function RecordScreen({
         {cameraError && (
           <p style={{ color: "var(--ember)", fontSize: 12, marginBottom: 10 }}>{cameraError}</p>
         )}
-        {uploadErr && (
-          <p style={{ color: "var(--ember)", fontSize: 12, marginBottom: 10 }}>{uploadErr}</p>
-        )}
+        {uploadErr ? (
+          <FeedNeedProjectNotice message={uploadErr} onAddProject={onAddProject} variant="inline" />
+        ) : null}
         {(analysisStatus || analysisErr) && (
           <p
             style={{
@@ -967,19 +1230,69 @@ export function RecordScreen({
                   <p style={{ color: "var(--ember)", fontSize: 13 }}>Could not load video URL.</p>
                 )}
               </div>
+              {reviewModalAiErr ? (
+                <p
+                  style={{
+                    color: "var(--ember)",
+                    fontSize: 11,
+                    padding: "0 20px 6px",
+                    margin: 0,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {reviewModalAiErr}
+                </p>
+              ) : null}
+              {reviewFeedErr ? (
+                <FeedNeedProjectNotice
+                  message={reviewFeedErr}
+                  onAddProject={onAddProject}
+                  variant="modal"
+                />
+              ) : null}
               <div className="record-review-actions">
-              <button type="button" className="btn-keep" onClick={() => setReviewItem(null)}>
-                Keep
-              </button>
-              <button
-                type="button"
-                className="btn-delete"
-                disabled={deletingId === reviewItem.id}
-                onClick={() => void confirmDeleteReviewed()}
-              >
-                {deletingId === reviewItem.id ? "Deleting…" : "Delete"}
-              </button>
-            </div>
+                <button type="button" className="btn-keep" onClick={() => setReviewItem(null)}>
+                  Keep
+                </button>
+                {reviewItem.published_at ? (
+                  <button type="button" className="btn-feed-publish" disabled>
+                    On feed
+                  </button>
+                ) : Boolean(latestSentimentOutput(reviewItem)?.is_processed) ||
+                  reviewFeedAiReadyOverride ? (
+                  <button
+                    type="button"
+                    className="btn-feed-publish"
+                    disabled={
+                      reviewFeedBusy || deletingId === reviewItem.id || reviewModalAiLoading
+                    }
+                    onClick={() => void publishReviewToFeed()}
+                  >
+                    {reviewFeedBusy ? "PUBLISHING…" : "FEED PUBLISH"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-start-ai"
+                    disabled={
+                      reviewModalAiLoading ||
+                      reviewFeedBusy ||
+                      deletingId === reviewItem.id
+                    }
+                    onClick={() => void startAiFromReviewModal()}
+                  >
+                    {reviewModalAiLoading ? "PROCESSING…" : "START AI PROCESSING"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-delete"
+                  disabled={deletingId === reviewItem.id || reviewFeedBusy || reviewModalAiLoading}
+                  onClick={() => void confirmDeleteReviewed()}
+                >
+                  {deletingId === reviewItem.id ? "Deleting…" : "Delete"}
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -12,14 +12,18 @@ export async function fetchIndustries(supabase: SupabaseClient): Promise<Industr
 }
 
 export async function fetchFounderProject(supabase: SupabaseClient, founderId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("projects")
     .select("id,name,hq_city,one_line_pitch")
     .eq("founder_id", founderId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data;
+  if (error) {
+    console.warn("fetchFounderProject", error.message);
+    return null;
+  }
+  return data ?? null;
 }
 
 export function founderNeedsOnboarding(project: {
