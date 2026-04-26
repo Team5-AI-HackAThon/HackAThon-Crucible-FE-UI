@@ -96,7 +96,7 @@ export function CrucibleApp() {
     setRole(profile.role === "investor" ? "vc" : "founder");
     setSession(sess);
     setPhase("app");
-    setTab(profile.role === "founder" ? "founder" : "feed");
+    setTab("feed");
   }, []);
 
   useEffect(() => {
@@ -181,8 +181,7 @@ export function CrucibleApp() {
     const supabase = getSupabaseBrowser();
     if (!supabase) {
       setPhase("app");
-      if (role === "founder") setTab(returnTab ?? "founder");
-      else setTab("feed");
+      setTab(returnTab ?? "feed");
       return;
     }
     const {
@@ -196,8 +195,7 @@ export function CrucibleApp() {
 
   const handleSkipOnboarding = () => {
     setPhase("app");
-    if (role === "founder") setTab("founder");
-    else setTab("feed");
+    setTab("feed");
   };
 
   const handleSignOut = async () => {
@@ -262,7 +260,7 @@ export function CrucibleApp() {
           onSkip={() => {
             tabBeforeAddProjectRef.current = null;
             setPhase("app");
-            setTab("founder");
+            setTab("feed");
           }}
           onComplete={handleOnboardingComplete}
         />
