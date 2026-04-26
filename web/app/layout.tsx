@@ -24,6 +24,10 @@ const cormorant = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "PEAR — Pre-seed & seed matching",
   description: "Behavioral matching for founders and investors",
+  icons: {
+    icon: [{ url: "/pear-icon.png", type: "image/png" }],
+    apple: "/pear-icon.png",
+  },
 };
 
 export default function RootLayout({

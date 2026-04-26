@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { fetchIndustries, type IndustryRow } from "@/lib/data/onboarding";
@@ -40,9 +41,20 @@ export function RoleSelectScreen({
     <div className="screen active" id="s-onboard" style={{ justifyContent: "center" }}>
       <div className="sa" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div className="ob-wrap">
-          <div className="ob-flame">🔥</div>
+          <div className="ob-flame">
+            <Image
+              src="/pear-icon.png"
+              alt="PEAR"
+              width={72}
+              height={72}
+              className="ob-flame-mark"
+              priority
+            />
+          </div>
           <div className="ob-logo">
-            PE<span>AR</span>
+            <span className="ob-logo-text">
+              PE<span>AR</span>
+            </span>
           </div>
           <div className="ob-sub">{"// Pre-seed & seed · behavioral matching"}</div>
           {envMissing && (
