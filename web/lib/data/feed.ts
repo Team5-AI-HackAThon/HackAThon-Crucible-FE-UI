@@ -24,6 +24,7 @@ export type FeedItemRow = {
     id: string;
     owner_id: string;
     duration_seconds: number | null;
+    duration_ms: number | null;
     quiz_template_slug: string | null;
     storage_bucket: string;
     storage_path: string;
@@ -51,6 +52,7 @@ export async function fetchFeedItems(supabase: SupabaseClient): Promise<FeedItem
         id,
         owner_id,
         duration_seconds,
+        duration_ms,
         quiz_template_slug,
         storage_bucket,
         storage_path,

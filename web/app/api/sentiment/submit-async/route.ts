@@ -4,9 +4,20 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+function parseDurationMsFromForm(raw: FormDataEntryValue | null): string | null {
+  if (raw == null) return null;
+  const s = typeof raw === "string" ? raw.trim() : String(raw).trim();
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const capped = Math.min(Math.floor(n), 24 * 60 * 60 * 1000);
+  return String(capped);
+}
+
 /**
  * Proxies multipart upload to Python `POST /api/v1/sentiment/video/submit-async`.
  * Injects `owner_id` from the signed-in user (must match form contract).
+ * Forwards optional `duration_ms` (whole milliseconds) to the backend when present.
  */
 export async function POST(req: Request) {
   try {
@@ -56,6 +67,11 @@ export async function POST(req: Request) {
       "media_kind",
       typeof kindRaw === "string" && kindRaw.trim() ? kindRaw.trim() : "video",
     );
+
+    const durationMs = parseDurationMsFromForm(incoming.get("duration_ms"));
+    if (durationMs != null) {
+      outgoing.append("duration_ms", durationMs);
+    }
 
     const url = `${getCruciblePythonBeBaseUrl()}/api/v1/sentiment/video/submit-async`;
     const upstream = await fetch(url, {

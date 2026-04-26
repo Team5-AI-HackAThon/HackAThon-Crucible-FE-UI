@@ -1,7 +1,7 @@
 "use client";
 
 import type { Role } from "./types";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import {
   attachSignedUrlsToFeedItems,
@@ -16,6 +16,15 @@ import {
 } from "@/lib/data/feed";
 import { fetchOwnerMediaList, formatDuration, type OwnerMediaRow } from "@/lib/data/mediaAssets";
 import type { InboxPreview } from "@/lib/data/inbox";
+import {
+  fetchMatchCardsForFounder,
+  fetchMatchCardsForVc,
+  parseInterestAction,
+  persistMatchActionFromClient,
+  sortMatchCardsPassesLast,
+  type InterestAction,
+  type MatchCardRow,
+} from "@/lib/data/matches";
 import { AppScreenHeader } from "./AppScreenHeader";
 
 const FEED_CHIPS = ["All", "🔥 Trending", "Seed", "AI / ML", "Climate"] as const;
@@ -609,8 +618,283 @@ function FeedCard({
   );
 }
 
-export function MatchesScreen({ firstName }: { firstName: string }) {
+function matchBadgePrefix(i: number): string {
+  if (i === 0) return "⚡ ";
+  if (i === 1) return "🔆 ";
+  return "· ";
+}
+
+/** After Interested/Save: compact card reflows; nudge scroll so the next card is easier to reach. */
+function nudgeScrollAfterMatchAct(cardRoot: HTMLElement | null) {
+  if (!cardRoot) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const scrollParent = cardRoot.closest(".sa") as HTMLElement | null;
+      const next = cardRoot.nextElementSibling as HTMLElement | null;
+      if (next?.classList.contains("match-card")) {
+        next.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      } else if (scrollParent) {
+        scrollParent.scrollBy({ top: -100, behavior: "smooth" });
+      }
+    });
+  });
+}
+
+function MatchPipelineCard({
+  row,
+  onRowUpdated,
+  viewerRole,
+  onOpenInboxThread,
+}: {
+  row: MatchCardRow;
+  onRowUpdated: (matchId: string, patch: Partial<MatchCardRow>) => void;
+  viewerRole: Role;
+  onOpenInboxThread?: (conversationId: string) => void;
+}) {
+  const letter = row.cardTitle.charAt(0).toUpperCase();
+  const scoreClass = row.matchPct >= 85 ? "score-green" : "score-amber";
+  const committed = parseInterestAction(row.lastAction);
+  const showActionButtons = committed === null;
+  const acted = committed === "interested" || committed === "save" || committed === "pass";
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [chatBusy, setChatBusy] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  async function persist(action: InterestAction) {
+    const previous = row.lastAction;
+    setSaveErr(null);
+    setSaving(true);
+    if (action === "pass") {
+      onRowUpdated(row.matchId, { lastAction: action });
+      try {
+        const confirmed = await persistMatchActionFromClient(row.matchId, action);
+        onRowUpdated(row.matchId, { lastAction: confirmed });
+      } catch (e: unknown) {
+        onRowUpdated(row.matchId, { lastAction: previous });
+        setSaveErr(e instanceof Error ? e.message : "Could not save.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    onRowUpdated(row.matchId, { lastAction: action });
+    try {
+      const confirmed = await persistMatchActionFromClient(row.matchId, action);
+      onRowUpdated(row.matchId, { lastAction: confirmed });
+      nudgeScrollAfterMatchAct(cardRef.current);
+    } catch (e: unknown) {
+      onRowUpdated(row.matchId, { lastAction: previous });
+      setSaveErr(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div ref={cardRef} className={`match-card${acted ? " match-card--acted" : ""}`}>
+      <div className="mc-top">
+        <div className="mc-avatar" style={{ background: "linear-gradient(135deg,#e5431a,#c8a44a)" }}>
+          {letter}
+        </div>
+        <div className="mc-info">
+          <div className="mc-name">{row.cardTitle}</div>
+          <div className="mc-sub">{row.cardSubtitle}</div>
+        </div>
+        <div className={`mc-score-pill ${scoreClass}`}>{row.matchPct}%</div>
+      </div>
+      <div className="mc-bars">
+        <div className="mc-bar-row">
+          <div className="mc-bar-lbl">Thesis Fit</div>
+          <div className="mc-bar-track">
+            <div
+              className="mc-bar-fill"
+              style={{ width: `${row.thesisFitPct}%`, background: "var(--sage)" }}
+            />
+          </div>
+        </div>
+        <div className="mc-bar-row">
+          <div className="mc-bar-lbl">Stage</div>
+          <div className="mc-bar-track">
+            <div
+              className="mc-bar-fill"
+              style={{ width: `${row.stageFitPct}%`, background: "var(--sage)" }}
+            />
+          </div>
+        </div>
+      </div>
+      {row.badges.length > 0 ? (
+        <div className="mc-sent-row">
+          {row.badges.slice(0, 4).map((b, i) => (
+            <div key={`${b}-${i}`} className={`sent-badge${i === 0 ? " sent-lead" : i === 1 ? " sent-energy" : ""}`}>
+              {matchBadgePrefix(i)}
+              {b}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {committed === "interested" ? (
+        <div className="mc-intent-row" aria-live="polite">
+          <div className="mc-intent-tag mc-intent-interested">✓ Interested</div>
+          {viewerRole === "founder" && row.vcId && onOpenInboxThread ? (
+            <button
+              type="button"
+              className="mc-intent-chat"
+              disabled={chatBusy}
+              aria-label="Open inbox chat with this investor"
+              title="Chat about this project"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSaveErr(null);
+                setChatBusy(true);
+                void (async () => {
+                  try {
+                    const res = await fetch("/api/inbox/match-thread", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ matchId: row.matchId }),
+                    });
+                    const body = (await res.json()) as { error?: string; conversationId?: string };
+                    if (!res.ok) {
+                      throw new Error(body.error ?? res.statusText);
+                    }
+                    if (typeof body.conversationId === "string") {
+                      onOpenInboxThread(body.conversationId);
+                    }
+                  } catch (err: unknown) {
+                    setSaveErr(err instanceof Error ? err.message : "Could not open chat.");
+                  } finally {
+                    setChatBusy(false);
+                  }
+                })();
+              }}
+            >
+              <span className="mc-intent-chat-icon" aria-hidden>
+                💬
+              </span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {committed === "save" ? (
+        <div className="mc-intent-row" aria-live="polite">
+          <div className="mc-intent-tag mc-intent-save">♡ Saved</div>
+        </div>
+      ) : null}
+      {committed === "pass" ? (
+        <div className="mc-intent-row" aria-live="polite">
+          <div className="mc-intent-tag mc-intent-pass">✕ Passed</div>
+        </div>
+      ) : null}
+      {showActionButtons ? (
+        <div
+          className="mc-actions"
+          onClick={(e) => e.stopPropagation()}
+          role="group"
+          aria-label="Match interest"
+          aria-busy={saving}
+        >
+          <button
+            type="button"
+            className="act-btn act-interested match-act-off"
+            aria-pressed={false}
+            disabled={saving}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void persist("interested");
+            }}
+          >
+            ✓ Interested
+          </button>
+          <button
+            type="button"
+            className="act-btn act-pass match-act-off"
+            aria-pressed={false}
+            disabled={saving}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void persist("pass");
+            }}
+          >
+            ✕ Pass
+          </button>
+          <button
+            type="button"
+            className="act-btn act-save match-act-off"
+            aria-pressed={false}
+            disabled={saving}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void persist("save");
+            }}
+          >
+            ♡ Save
+          </button>
+        </div>
+      ) : null}
+      {saveErr ? (
+        <p style={{ color: "var(--ember)", fontSize: 11, padding: "0 16px 12px", margin: 0 }}>{saveErr}</p>
+      ) : null}
+    </div>
+  );
+}
+
+export function MatchesScreen({
+  firstName,
+  userId,
+  viewerRole,
+  onOpenInboxThread,
+}: {
+  firstName: string;
+  userId: string;
+  viewerRole: Role;
+  onOpenInboxThread?: (conversationId: string) => void;
+}) {
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
+  const [cards, setCards] = useState<MatchCardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseBrowser();
+    if (!supabase || !userId) {
+      setLoading(false);
+      setCards([]);
+      return;
+    }
+    setLoading(true);
+    setLoadErr(null);
+    const run =
+      viewerRole === "vc"
+        ? fetchMatchCardsForVc(supabase, userId)
+        : fetchMatchCardsForFounder(supabase, userId);
+    void run
+      .then((rows) => {
+        if (!cancelled) setCards(rows);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Could not load matches.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, viewerRole]);
+
+  const matchCardsDisplay = useMemo(() => sortMatchCardsPassesLast(cards), [cards]);
+
+  const heroSub =
+    viewerRole === "vc" ? "Investor · projects aligned to you" : "Founder · VC interest on your startups";
+
   return (
     <>
       <AppScreenHeader
@@ -627,9 +911,9 @@ export function MatchesScreen({ firstName }: { firstName: string }) {
           <div className="dash-hero-bg" />
           <div className="dash-hero-label">{"// Matching Dashboard"}</div>
           <div className="dash-hero-title">
-            Maya Chen
+            {firstName && firstName !== "there" ? firstName : "You"}
             <br />
-            <em>Partner · Sequoia</em>
+            <em>{heroSub}</em>
           </div>
           <div className="dash-metric-grid">
             <div className="dmg-item">
@@ -673,48 +957,29 @@ export function MatchesScreen({ firstName }: { firstName: string }) {
             </div>
           </div>
         </div>
-        <div className="sec">{"// Top Matches For You"}</div>
-        <div className="match-card">
-          <div className="mc-top">
-            <div className="mc-avatar" style={{ background: "linear-gradient(135deg,#e5431a,#c8a44a)" }}>
-              V
-            </div>
-            <div className="mc-info">
-              <div className="mc-name">Vanta AI</div>
-              <div className="mc-sub">Jake Torres · CEO · Seed · $2.4M</div>
-            </div>
-            <div className="mc-score-pill score-green">94%</div>
-          </div>
-          <div className="mc-bars">
-            <div className="mc-bar-row">
-              <div className="mc-bar-lbl">Thesis Fit</div>
-              <div className="mc-bar-track">
-                <div className="mc-bar-fill" style={{ width: "96%", background: "var(--sage)" }} />
-              </div>
-            </div>
-            <div className="mc-bar-row">
-              <div className="mc-bar-lbl">Stage</div>
-              <div className="mc-bar-track">
-                <div className="mc-bar-fill" style={{ width: "92%", background: "var(--sage)" }} />
-              </div>
-            </div>
-          </div>
-          <div className="mc-sent-row">
-            <div className="sent-badge sent-lead">⚡ Clear Leadership</div>
-            <div className="sent-badge sent-energy">🔆 High Energy</div>
-          </div>
-          <div className="mc-actions">
-            <button type="button" className="act-btn act-interested">
-              ✓ Interested
-            </button>
-            <button type="button" className="act-btn act-pass">
-              ✕ Pass
-            </button>
-            <button type="button" className="act-btn act-save">
-              ♡ Save
-            </button>
-          </div>
-        </div>
+        <div className="sec">{loading ? "// Loading matches…" : "// Top Matches For You"}</div>
+        {loadErr ? (
+          <p style={{ color: "var(--ember)", fontSize: 12, padding: "0 16px 12px", margin: 0 }}>{loadErr}</p>
+        ) : null}
+        {!loading && cards.length === 0 ? (
+          <p style={{ color: "var(--muted)", fontSize: 12, padding: "0 16px 16px", margin: 0, lineHeight: 1.5 }}>
+            No match rows yet. As a VC, run{" "}
+            <code style={{ fontSize: 10 }}>supabase/manual/seed_matches_vc_founder_demo.sql</code> after feed seed,
+            then refresh. Founders see matches where <code style={{ fontSize: 10 }}>project_vc_matches</code> references
+            their <code style={{ fontSize: 10 }}>projects</code>.
+          </p>
+        ) : null}
+        {matchCardsDisplay.map((row) => (
+          <MatchPipelineCard
+            key={row.matchId}
+            row={row}
+            viewerRole={viewerRole}
+            onOpenInboxThread={onOpenInboxThread}
+            onRowUpdated={(matchId, patch) =>
+              setCards((prev) => prev.map((r) => (r.matchId === matchId ? { ...r, ...patch } : r)))
+            }
+          />
+        ))}
         <div className="spacer" />
       </div>
     </>
@@ -921,7 +1186,7 @@ function inboxBubbleTime(iso: string): string {
 }
 
 async function fetchInboxList(): Promise<InboxPreview[]> {
-  const res = await fetch("/api/inbox/conversations", { credentials: "same-origin" });
+  const res = await fetch("/api/inbox/conversations", { credentials: "same-origin", cache: "no-store" });
   const data = (await res.json()) as { conversations?: InboxPreview[]; error?: string };
   if (!res.ok) {
     throw new Error(data.error ?? res.statusText);
@@ -929,7 +1194,17 @@ async function fetchInboxList(): Promise<InboxPreview[]> {
   return data.conversations ?? [];
 }
 
-export function InboxScreen({ firstName, userId }: { firstName: string; userId: string }) {
+export function InboxScreen({
+  firstName,
+  userId,
+  focusConversationId,
+  onFocusConversationHandled,
+}: {
+  firstName: string;
+  userId: string;
+  focusConversationId?: string | null;
+  onFocusConversationHandled?: () => void;
+}) {
   const av = firstName.length > 0 ? firstName.charAt(0).toUpperCase() : "?";
   const [rows, setRows] = useState<InboxPreview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -937,6 +1212,21 @@ export function InboxScreen({ firstName, userId }: { firstName: string; userId: 
   const [seedHint, setSeedHint] = useState<string | null>(null);
   const [seedBusy, setSeedBusy] = useState(false);
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  const [composeDraft, setComposeDraft] = useState("");
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendErr, setSendErr] = useState<string | null>(null);
+  const composeRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    setComposeDraft("");
+    setSendErr(null);
+    if (!openThreadId) return;
+    const t = window.setTimeout(() => {
+      composeRef.current?.focus();
+      composeRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [openThreadId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -976,6 +1266,15 @@ export function InboxScreen({ firstName, userId }: { firstName: string; userId: 
     };
   }, [userId]);
 
+  useEffect(() => {
+    if (!focusConversationId || loading) return;
+    const hit = rows.some((r) => r.conversationId === focusConversationId);
+    if (hit) {
+      setOpenThreadId(focusConversationId);
+    }
+    onFocusConversationHandled?.();
+  }, [focusConversationId, loading, rows, onFocusConversationHandled]);
+
   const trySampleThread = () => {
     setSeedBusy(true);
     setSeedHint(null);
@@ -1002,6 +1301,32 @@ export function InboxScreen({ firstName, userId }: { firstName: string; userId: 
       }
     })();
   };
+
+  async function submitInboxMessage(conversationId: string) {
+    const text = composeDraft.trim();
+    if (!text || sendBusy) return;
+    setSendBusy(true);
+    setSendErr(null);
+    try {
+      const res = await fetch(`/api/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: text }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? res.statusText);
+      }
+      setComposeDraft("");
+      const list = await fetchInboxList();
+      setRows(list);
+    } catch (e: unknown) {
+      setSendErr(e instanceof Error ? e.message : "Could not send.");
+    } finally {
+      setSendBusy(false);
+    }
+  }
 
   return (
     <>
@@ -1054,8 +1379,23 @@ export function InboxScreen({ firstName, userId }: { firstName: string; userId: 
                 </button>
                 {expanded ? (
                   <div className="inbox-thread" role="region" aria-label={`Messages with ${row.counterpartyName}`}>
+                    {row.threadProjectSummary ? (
+                      <div className="inbox-thread-project" aria-label="Project for this conversation">
+                        <div
+                          className="inbox-thread-project-av"
+                          style={{ background: "linear-gradient(135deg,#e5431a,#c8a44a)" }}
+                        >
+                          {row.threadProjectSummary.title.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="inbox-thread-project-text">
+                          <div className="inbox-thread-project-title">{row.threadProjectSummary.title}</div>
+                          <div className="inbox-thread-project-sub">{row.threadProjectSummary.detail}</div>
+                          <div className="inbox-thread-project-with">With {row.counterpartyName}</div>
+                        </div>
+                      </div>
+                    ) : null}
                     {row.threadMessages.length === 0 ? (
-                      <p className="inbox-thread-empty">No messages in this thread.</p>
+                      <p className="inbox-thread-empty">No messages in this thread yet.</p>
                     ) : (
                       row.threadMessages.map((m, mi) => {
                         const mine = m.sender_id === userId;
@@ -1070,6 +1410,45 @@ export function InboxScreen({ firstName, userId }: { firstName: string; userId: 
                         );
                       })
                     )}
+                    <form
+                      className="inbox-compose"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void submitInboxMessage(row.conversationId);
+                      }}
+                    >
+                      <textarea
+                        ref={composeRef}
+                        className="inbox-compose-input"
+                        rows={2}
+                        value={composeDraft}
+                        onChange={(e) => {
+                          setComposeDraft(e.target.value);
+                          setSendErr(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void submitInboxMessage(row.conversationId);
+                          }
+                        }}
+                        placeholder="Write a message…"
+                        disabled={sendBusy}
+                        aria-label="Message text"
+                      />
+                      <button
+                        type="submit"
+                        className="inbox-compose-send"
+                        disabled={sendBusy || composeDraft.trim().length === 0}
+                      >
+                        {sendBusy ? "…" : "Send"}
+                      </button>
+                    </form>
+                    {sendErr ? (
+                      <p className="inbox-compose-err" role="alert">
+                        {sendErr}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

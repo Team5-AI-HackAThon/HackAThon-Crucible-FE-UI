@@ -12,6 +12,11 @@ type RoleSelectProps = {
   authError?: boolean;
   oauthBusy?: boolean;
   oauthStartError?: string | null;
+  /** When non-empty, show email/password sign-in for these addresses only (see emailLoginAllowlist.ts). */
+  emailLoginAllowlist?: string[];
+  onEmailPasswordSignIn?: (email: string, password: string) => void | Promise<void>;
+  emailSignInBusy?: boolean;
+  emailSignInError?: string | null;
 };
 
 export function RoleSelectScreen({
@@ -22,7 +27,15 @@ export function RoleSelectScreen({
   authError,
   oauthBusy,
   oauthStartError,
+  emailLoginAllowlist = [],
+  onEmailPasswordSignIn,
+  emailSignInBusy = false,
+  emailSignInError = null,
 }: RoleSelectProps) {
+  const [demoEmail, setDemoEmail] = useState("");
+  const [demoPassword, setDemoPassword] = useState("");
+  const showEmailLogin = emailLoginAllowlist.length > 0 && typeof onEmailPasswordSignIn === "function";
+
   return (
     <div className="screen active" id="s-onboard" style={{ justifyContent: "center" }}>
       <div className="sa" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -81,7 +94,7 @@ export function RoleSelectScreen({
             type="button"
             className="ob-cta"
             onClick={() => void onContinueWithGoogle()}
-            disabled={!!envMissing || !!oauthBusy}
+            disabled={!!envMissing || !!oauthBusy || !!emailSignInBusy}
           >
             {oauthBusy ? "Opening Google…" : "Continue with Google →"}
           </button>
@@ -97,6 +110,64 @@ export function RoleSelectScreen({
               Sign in
             </a>
           </div>
+          {showEmailLogin ? (
+            <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--border)" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--muted)",
+                  marginBottom: 10,
+                  fontFamily: "var(--font-dm-mono), monospace",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Demo / QA — email sign-in
+              </div>
+              {emailSignInError ? (
+                <p style={{ color: "var(--ember)", fontSize: 11, marginBottom: 10, lineHeight: 1.45 }}>
+                  {emailSignInError}
+                </p>
+              ) : null}
+              <div className="ob-field" style={{ marginBottom: 10 }}>
+                <div className="ob-label">Email</div>
+                <input
+                  className="ob-input"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="feed-demo-founder1@crucible.test"
+                  value={demoEmail}
+                  onChange={(e) => setDemoEmail(e.target.value)}
+                  disabled={!!emailSignInBusy}
+                />
+              </div>
+              <div className="ob-field" style={{ marginBottom: 12 }}>
+                <div className="ob-label">Password</div>
+                <input
+                  className="ob-input"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Password"
+                  value={demoPassword}
+                  onChange={(e) => setDemoPassword(e.target.value)}
+                  disabled={!!emailSignInBusy}
+                />
+              </div>
+              <button
+                type="button"
+                className="ob-cta"
+                style={{ background: "var(--border2)", fontSize: 9 }}
+                disabled={!!envMissing || !!oauthBusy || !!emailSignInBusy}
+                onClick={() => void onEmailPasswordSignIn?.(demoEmail, demoPassword)}
+              >
+                {emailSignInBusy ? "Signing in…" : "Sign in with email (allowlisted) →"}
+              </button>
+              <p style={{ color: "var(--muted2)", fontSize: 9, marginTop: 10, lineHeight: 1.4 }}>
+                Only emails in NEXT_PUBLIC_CRUCIBLE_EMAIL_LOGIN_ALLOWLIST. Choose Founder or Investor above to match
+                the account before signing in.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

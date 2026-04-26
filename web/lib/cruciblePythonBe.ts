@@ -15,3 +15,14 @@ export function getPythonSubmitMediaAssetPath(): string {
   const p = process.env.CRUCIBLE_PYTHON_SUBMIT_MEDIA_PATH ?? "/submit-async";
   return p.startsWith("/") ? p : `/${p}`;
 }
+
+/** Multipart POST: video file field → response body = MP3 (audio/mpeg). Override if your API differs. */
+export function getPythonExtractAudioPath(): string {
+  const p = process.env.CRUCIBLE_PYTHON_EXTRACT_AUDIO_PATH ?? "/api/v1/media/extract-audio";
+  return p.startsWith("/") ? p : `/${p}`;
+}
+
+/** Form field name for the video part (default `file`). */
+export function getPythonExtractAudioFormField(): string {
+  return process.env.CRUCIBLE_PYTHON_EXTRACT_AUDIO_FIELD?.trim() || "file";
+}

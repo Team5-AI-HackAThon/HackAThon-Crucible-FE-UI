@@ -141,6 +141,7 @@ export async function POST(req: Request) {
         storage_bucket: "crucible-media",
         storage_path: path,
         duration_seconds: null,
+        duration_ms: null,
         mime_type: contentType?.split(";")[0]?.trim() ?? null,
         published_at: new Date().toISOString(),
         quiz_template_slug: null,

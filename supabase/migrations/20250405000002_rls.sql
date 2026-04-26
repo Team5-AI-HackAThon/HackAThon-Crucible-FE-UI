@@ -18,6 +18,35 @@ ALTER TABLE public.feed_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.industries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_stages ENABLE ROW LEVEL SECURITY;
 
+-- Idempotent: safe to re-run in SQL Editor after a partial apply
+DROP POLICY IF EXISTS industries_select_authenticated ON public.industries;
+DROP POLICY IF EXISTS project_stages_select_authenticated ON public.project_stages;
+DROP POLICY IF EXISTS profiles_select_own ON public.profiles;
+DROP POLICY IF EXISTS profiles_update_own ON public.profiles;
+DROP POLICY IF EXISTS profiles_insert_own ON public.profiles;
+DROP POLICY IF EXISTS founder_profiles_own ON public.founder_profiles;
+DROP POLICY IF EXISTS vc_profiles_own ON public.vc_profiles;
+DROP POLICY IF EXISTS vc_capital_own ON public.vc_capital_mgmt;
+DROP POLICY IF EXISTS projects_select_own ON public.projects;
+DROP POLICY IF EXISTS projects_insert_own ON public.projects;
+DROP POLICY IF EXISTS projects_update_own ON public.projects;
+DROP POLICY IF EXISTS projects_delete_own ON public.projects;
+DROP POLICY IF EXISTS projects_select_vc_discovery ON public.projects;
+DROP POLICY IF EXISTS project_industries_by_founder ON public.project_industries;
+DROP POLICY IF EXISTS pvm_founder ON public.project_vc_matches;
+DROP POLICY IF EXISTS pvm_vc_insert ON public.project_vc_matches;
+DROP POLICY IF EXISTS pvm_vc_update ON public.project_vc_matches;
+DROP POLICY IF EXISTS pvm_founder_update ON public.project_vc_matches;
+DROP POLICY IF EXISTS connections_participants ON public.connections;
+DROP POLICY IF EXISTS media_owner ON public.media_assets;
+DROP POLICY IF EXISTS media_vc_read_published ON public.media_assets;
+DROP POLICY IF EXISTS sentiment_read ON public.sentiment_outputs;
+DROP POLICY IF EXISTS sentiment_service_insert ON public.sentiment_outputs;
+DROP POLICY IF EXISTS conversations_participants ON public.conversations;
+DROP POLICY IF EXISTS messages_participants ON public.messages;
+DROP POLICY IF EXISTS feed_vc_read ON public.feed_items;
+DROP POLICY IF EXISTS feed_founder_write ON public.feed_items;
+
 CREATE POLICY industries_select_authenticated ON public.industries
   FOR SELECT TO authenticated USING (true);
 

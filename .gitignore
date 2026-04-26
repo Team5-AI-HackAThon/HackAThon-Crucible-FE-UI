@@ -28,6 +28,9 @@ yarn-error.log*
 .env*.local
 .env
 
+# Cursor MCP (copy from .cursor/mcp.json.example; may include org-specific URLs)
+.cursor/mcp.json
+
 # vercel
 .vercel
 

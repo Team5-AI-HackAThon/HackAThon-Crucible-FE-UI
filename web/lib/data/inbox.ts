@@ -13,6 +13,8 @@ export type InboxPreview = {
   conversationId: string;
   counterpartyName: string;
   projectLabel: string | null;
+  /** When this thread is tied to a project, richer card-style context for the expanded view. */
+  threadProjectSummary: { title: string; detail: string } | null;
   preview: string;
   timeLabel: string;
   unread: boolean;
@@ -26,6 +28,33 @@ function profileLabel(full_name: string | null, email: string | null): string {
   if (n) return n;
   if (email) return email.split("@")[0] ?? "?";
   return "?";
+}
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  metadata: Record<string, unknown> | null;
+  project_stages: { name: string } | null | { name: string }[];
+};
+
+function stageLineFromProject(p: ProjectRow): string {
+  const st = p.project_stages;
+  const row = Array.isArray(st) ? st[0] : st;
+  if (row?.name?.trim()) return row.name.trim();
+  const meta = p.metadata;
+  const m = meta && typeof meta.stage === "string" ? meta.stage.trim() : "";
+  return m || "—";
+}
+
+function raiseLineFromMeta(metadata: Record<string, unknown> | null): string {
+  if (!metadata) return "—";
+  const keys = ["raise", "funding", "round_size", "raise_label"] as const;
+  for (const k of keys) {
+    const v = metadata[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return `$${v}M`;
+  }
+  return "—";
 }
 
 function formatRelative(iso: string): string {
@@ -67,6 +96,39 @@ function parseChatJsonMessages(raw: unknown): InboxThreadMessage[] {
   return out;
 }
 
+function threadMessageDedupeKey(m: InboxThreadMessage): string {
+  const id = m.id?.trim();
+  if (id) return `id:${id}`;
+  return `${m.sender_id}|${m.created_at}|${m.body}`;
+}
+
+/** Prefer DB messages when both exist (e.g. demo `chat_json` + live sends); merge and sort by time. */
+function mergeJsonAndDbThreadMessages(
+  jsonMsgs: InboxThreadMessage[],
+  dbMsgs: InboxThreadMessage[],
+): InboxThreadMessage[] {
+  if (jsonMsgs.length === 0) return dbMsgs;
+  if (dbMsgs.length === 0) return jsonMsgs;
+  const seen = new Set<string>();
+  const merged: InboxThreadMessage[] = [];
+  for (const m of jsonMsgs) {
+    const k = threadMessageDedupeKey(m);
+    if (!seen.has(k)) {
+      seen.add(k);
+      merged.push(m);
+    }
+  }
+  for (const m of dbMsgs) {
+    const k = threadMessageDedupeKey(m);
+    if (!seen.has(k)) {
+      seen.add(k);
+      merged.push(m);
+    }
+  }
+  merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return merged;
+}
+
 /** Conversations the user participates in, with last message preview and counterparty display name. */
 export async function fetchInboxPreviews(supabase: SupabaseClient, userId: string): Promise<InboxPreview[]> {
   const { data: convs, error: e1 } = await supabase
@@ -87,27 +149,37 @@ export async function fetchInboxPreviews(supabase: SupabaseClient, userId: strin
   /** Without `profiles_select_messaging_partners` RLS, this may be empty — still return threads. */
   const profileRows = profiles ?? [];
 
-  let projects: { id: string; name: string }[] = [];
+  let projects: ProjectRow[] = [];
   if (projectIds.length > 0) {
-    const { data: pr, error: epr } = await supabase.from("projects").select("id, name").in("id", projectIds);
+    const { data: pr, error: epr } = await supabase
+      .from("projects")
+      .select("id, name, metadata, project_stages ( name )")
+      .in("id", projectIds);
     if (epr) throw epr;
-    projects = pr ?? [];
+    projects = (pr ?? []) as ProjectRow[];
   }
 
   const { data: msgs, error: em } = await supabase
     .from("messages")
-    .select("conversation_id, body, created_at, sender_id, read_at")
+    .select("id, conversation_id, body, created_at, sender_id, read_at")
     .in("conversation_id", convIds)
     .order("created_at", { ascending: true });
   if (em) throw em;
 
   const profileMap = new Map(profileRows.map((p) => [p.id, p]));
   const projectMap = new Map(projects.map((p) => [p.id, p.name]));
+  const projectSummaryMap = new Map(
+    projects.map((p) => {
+      const detail = [stageLineFromProject(p), raiseLineFromMeta(p.metadata)].join(" · ");
+      return [p.id, { title: p.name, detail }] as const;
+    }),
+  );
 
   const messagesByConv = new Map<string, InboxThreadMessage[]>();
   for (const m of msgs ?? []) {
     const arr = messagesByConv.get(m.conversation_id) ?? [];
     arr.push({
+      id: typeof m.id === "string" ? m.id : undefined,
       sender_id: m.sender_id,
       body: m.body,
       created_at: m.created_at,
@@ -121,9 +193,10 @@ export async function fetchInboxPreviews(supabase: SupabaseClient, userId: strin
     const p = profileMap.get(otherId);
     const counterpartyName = p ? profileLabel(p.full_name, p.email) : "Unknown";
     const projectName = c.project_id ? projectMap.get(c.project_id) : null;
+    const threadProjectSummary = c.project_id ? projectSummaryMap.get(c.project_id) ?? null : null;
     const fromJson = parseChatJsonMessages(c.chat_json);
     const fromDb = messagesByConv.get(c.id) ?? [];
-    const threadMessages = fromJson.length > 0 ? fromJson : fromDb;
+    const threadMessages = mergeJsonAndDbThreadMessages(fromJson, fromDb);
     const last = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : null;
     const preview = last?.body ?? "No messages yet";
     const ts = last?.created_at ?? c.last_message_at ?? c.created_at;
@@ -133,6 +206,7 @@ export async function fetchInboxPreviews(supabase: SupabaseClient, userId: strin
       conversationId: c.id,
       counterpartyName,
       projectLabel: projectName ?? null,
+      threadProjectSummary,
       preview,
       timeLabel: formatRelative(ts),
       unread,

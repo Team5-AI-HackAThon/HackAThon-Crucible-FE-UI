@@ -12,6 +12,7 @@ type MediaAssetRow = {
   storage_bucket: string;
   storage_path: string;
   duration_seconds: number | null;
+  duration_ms: number | null;
   mime_type: string | null;
   thumbnail_path: string | null;
   published_at: string | null;
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     const { data: row, error: qErr } = await supabase
       .from("media_assets")
       .select(
-        "id, owner_id, project_id, kind, storage_bucket, storage_path, duration_seconds, mime_type, thumbnail_path, published_at, quiz_template_slug, metadata, created_at, updated_at",
+        "id, owner_id, project_id, kind, storage_bucket, storage_path, duration_seconds, duration_ms, mime_type, thumbnail_path, published_at, quiz_template_slug, metadata, created_at, updated_at",
       )
       .eq("id", mediaId)
       .eq("owner_id", user.id)

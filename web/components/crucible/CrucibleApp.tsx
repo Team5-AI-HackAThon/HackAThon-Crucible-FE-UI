@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { getFirstNameFromUser } from "@/lib/auth/displayName";
+import { getEmailLoginAllowlist, isEmailLoginAllowed } from "@/lib/auth/emailLoginAllowlist";
 import { setPendingRole, syncProfileRoleAfterOAuth } from "@/lib/auth/profile";
 import { fetchFounderProject, founderNeedsOnboarding } from "@/lib/data/onboarding";
 import {
@@ -35,8 +36,13 @@ export function CrucibleApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthStartError, setOauthStartError] = useState<string | null>(null);
+  const [emailSignInBusy, setEmailSignInBusy] = useState(false);
+  const [emailSignInError, setEmailSignInError] = useState<string | null>(null);
+  const emailLoginAllowlist = useMemo(() => getEmailLoginAllowlist(), []);
   const [addProjectKey, setAddProjectKey] = useState(0);
   const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
+  /** Opens Inbox on this conversation after creating/fetching thread from Matches. */
+  const [inboxFocusConversationId, setInboxFocusConversationId] = useState<string | null>(null);
   /** After +Project save, return here instead of defaulting to Profile (founder). */
   const tabBeforeAddProjectRef = useRef<Tab | null>(null);
 
@@ -138,6 +144,37 @@ export function CrucibleApp() {
     // Success: full-page redirect to Google; leave oauthBusy true until unload.
   };
 
+  const signInWithEmailPassword = async (email: string, password: string) => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+    const normalized = email.trim().toLowerCase();
+    setEmailSignInError(null);
+    setOauthStartError(null);
+    if (!normalized || !password) {
+      setEmailSignInError("Enter email and password.");
+      return;
+    }
+    if (!isEmailLoginAllowed(normalized, emailLoginAllowlist)) {
+      setEmailSignInError("This email is not in NEXT_PUBLIC_CRUCIBLE_EMAIL_LOGIN_ALLOWLIST.");
+      return;
+    }
+    setPendingRole(role);
+    setEmailSignInBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalized,
+        password,
+      });
+      if (error) {
+        setEmailSignInError(error.message);
+        return;
+      }
+      // onAuthStateChange → loadAppState
+    } finally {
+      setEmailSignInBusy(false);
+    }
+  };
+
   const handleOnboardingComplete = async () => {
     const returnTab = tabBeforeAddProjectRef.current;
     tabBeforeAddProjectRef.current = null;
@@ -206,6 +243,10 @@ export function CrucibleApp() {
           authError={authError}
           oauthBusy={oauthBusy}
           oauthStartError={oauthStartError}
+          emailLoginAllowlist={emailLoginAllowlist}
+          onEmailPasswordSignIn={(e, p) => void signInWithEmailPassword(e, p)}
+          emailSignInBusy={emailSignInBusy}
+          emailSignInError={emailSignInError}
         />
       )}
 
@@ -244,7 +285,15 @@ export function CrucibleApp() {
           </div>
 
           <div className={`screen${tab === "dash" ? " active" : ""}`}>
-            <MatchesScreen firstName={firstName} />
+            <MatchesScreen
+              firstName={firstName}
+              userId={session.user.id}
+              viewerRole={role}
+              onOpenInboxThread={(conversationId) => {
+                setInboxFocusConversationId(conversationId);
+                setTab("msg");
+              }}
+            />
           </div>
 
           <div className={`screen${tab === "quiz" ? " active" : ""}`}>
@@ -270,7 +319,13 @@ export function CrucibleApp() {
 
           <div className={`screen${tab === "msg" ? " active" : ""}`}>
             {tab === "msg" ? (
-              <InboxScreen key={session.user.id} firstName={firstName} userId={session.user.id} />
+              <InboxScreen
+                key={session.user.id}
+                firstName={firstName}
+                userId={session.user.id}
+                focusConversationId={inboxFocusConversationId}
+                onFocusConversationHandled={() => setInboxFocusConversationId(null)}
+              />
             ) : null}
           </div>
 

@@ -9,7 +9,12 @@ import {
   type OwnerMediaWithUrl,
 } from "@/lib/data/mediaAssets";
 import { parseSubmitAsyncSseData, type SubmitAsyncJson202Response } from "@/lib/sentiment/submitAsyncTypes";
-import { getCameraStream, startMediaRecorder } from "@/lib/media/recorder";
+import {
+  cloneAudioTracksStream,
+  getCameraStream,
+  startAudioOnlyMediaRecorder,
+  startMediaRecorder,
+} from "@/lib/media/recorder";
 import { deleteMediaAsset, type QuizSlug } from "@/lib/media/videoUpload";
 import { fetchFounderProject } from "@/lib/data/onboarding";
 import { AppScreenHeader } from "./AppScreenHeader";
@@ -130,8 +135,11 @@ function MediaThumb({
   const vref = useRef<HTMLVideoElement>(null);
   const jobDoneRef = useRef(false);
   const initialDone = Boolean(latestSentimentOutput(item)?.is_processed);
+  const initialAudioDone = Boolean(item.audio_storage_path?.trim());
   const [aiPhase, setAiPhase] = useState<AiPhase>(initialDone ? "done" : "idle");
   const [aiErr, setAiErr] = useState<string | null>(null);
+  const [tPhase, setTPhase] = useState<AiPhase>(initialAudioDone ? "done" : "idle");
+  const [tErr, setTErr] = useState<string | null>(null);
   /** From `POST /submit-async` 202 `sentiment_output_id` — enables BFF SSE + status poll. */
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
@@ -156,6 +164,12 @@ function MediaThumb({
       setAiPhase("done");
     }
   }, [item]);
+
+  useEffect(() => {
+    if (item.audio_storage_path?.trim()) {
+      setTPhase("done");
+    }
+  }, [item.audio_storage_path]);
 
   useEffect(() => {
     const v = vref.current;
@@ -302,6 +316,50 @@ function MediaThumb({
     }
   }
 
+  async function onTranscriptAudioClick(e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setTErr(null);
+    if (tPhase === "loading") return;
+    setTPhase("loading");
+    try {
+      const res = await fetch("/api/media/extract-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ media_asset_id: item.id }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        detail?: string;
+        hint?: string;
+        step?: string;
+        upstream_status?: number;
+      };
+      if (!res.ok) {
+        setTPhase(item.audio_storage_path?.trim() ? "done" : "idle");
+        const parts = [
+          typeof j.error === "string" ? j.error : null,
+          typeof j.detail === "string" && j.detail !== j.error ? j.detail : null,
+          typeof j.hint === "string" ? j.hint : null,
+          j.upstream_status != null ? `HTTP ${j.upstream_status}` : null,
+          j.step ? `[${j.step}]` : null,
+        ].filter(Boolean);
+        setTErr(
+          parts.length > 0 ? parts.join(" — ") : `Request failed (${res.status})`,
+        );
+        return;
+      }
+      setTPhase("done");
+      void onLibraryRefresh();
+    } catch {
+      setTPhase(item.audio_storage_path?.trim() ? "done" : "idle");
+      setTErr("Could not extract audio.");
+    }
+  }
+
+  const chipErrText = [aiErr, tErr].filter(Boolean).join(" · ");
+  const chipErrTitle = [aiErr, tErr].filter(Boolean).join(" — ");
+
   return (
     <div className="record-lib-thumb-wrap">
       <button type="button" className="record-lib-thumb" onClick={onOpen}>
@@ -331,28 +389,44 @@ function MediaThumb({
           </div>
         </div>
       </button>
-      <button
-        type="button"
-        className={`record-thumb-ai${aiPhase === "done" ? " record-thumb-ai--done" : ""}${aiPhase === "loading" ? " record-thumb-ai--loading" : ""}`}
-        title={
-          aiPhase === "done"
-            ? "Video intelligence complete"
-            : "Run video intelligence (sends media_assets to analysis service)"
-        }
-        aria-label="Video intelligence"
-        onClick={onAiClick}
-      >
-        {aiPhase === "loading" ? <span className="record-thumb-ai-spin" aria-hidden /> : null}
-        {aiPhase === "done" ? (
-          <span className="record-thumb-ai-check" aria-hidden>
-            {"\u2713"}
-          </span>
-        ) : null}
-        {aiPhase === "idle" ? <span aria-hidden>AI</span> : null}
-      </button>
-      {aiErr ? (
-        <div className="record-thumb-ai-err" title={aiErr}>
-          {aiErr.length > 40 ? `${aiErr.slice(0, 40)}…` : aiErr}
+      <div className="record-thumb-chips">
+        <button
+          type="button"
+          className={`record-thumb-ai${aiPhase === "done" ? " record-thumb-ai--done" : ""}${aiPhase === "loading" ? " record-thumb-ai--loading" : ""}`}
+          title={
+            aiPhase === "done"
+              ? "Video intelligence complete"
+              : "Run video intelligence (sends media_assets to analysis service)"
+          }
+          aria-label="Video intelligence"
+          onClick={onAiClick}
+        >
+          {aiPhase === "loading" ? <span className="record-thumb-ai-spin" aria-hidden /> : null}
+          {aiPhase === "done" ? (
+            <span className="record-thumb-ai-check" aria-hidden>
+              {"\u2713"}
+            </span>
+          ) : null}
+          {aiPhase === "idle" ? <span aria-hidden>AI</span> : null}
+        </button>
+        <button
+          type="button"
+          className={`record-thumb-t${tPhase === "done" ? " record-thumb-t--done" : ""}${tPhase === "loading" ? " record-thumb-t--loading" : ""}`}
+          title={
+            tPhase === "done"
+              ? "MP3 audio extracted — stored on media_assets.audio_storage_path"
+              : "Extract MP3 audio (uploads video to analysis service, saves audio to storage)"
+          }
+          aria-label="Extract audio for transcript pipeline"
+          onClick={onTranscriptAudioClick}
+        >
+          {tPhase === "loading" ? <span className="record-thumb-t-spin" aria-hidden /> : null}
+          {tPhase === "idle" || tPhase === "done" ? <span aria-hidden>T</span> : null}
+        </button>
+      </div>
+      {chipErrText ? (
+        <div className="record-thumb-chip-err" title={chipErrTitle}>
+          {chipErrText.length > 120 ? `${chipErrText.slice(0, 120)}…` : chipErrText}
         </div>
       ) : null}
     </div>
@@ -380,6 +454,10 @@ export function RecordScreen({
   const [isRecording, setIsRecording] = useState(false);
   const [secs, setSecs] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  /** Mic-only track recorded in parallel with video (same session). */
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
+  /** Wall-clock capture length for this take (ms), capped at MAX_SECS. */
+  const [recordedDurationMs, setRecordedDurationMs] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -407,6 +485,10 @@ export function RecordScreen({
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const blobPromiseRef = useRef<Promise<Blob> | null>(null);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioBlobPromiseRef = useRef<Promise<Blob> | null>(null);
+  const audioCloneTracksRef = useRef<MediaStreamTrack[]>([]);
+  const recordingStartMsRef = useRef<number>(0);
 
   const promptText = QUIZ_PROMPTS[quizKey];
   const fillPct = Math.min(100, (secs / MAX_SECS) * 100);
@@ -721,19 +803,53 @@ export function RecordScreen({
 
   const stopRecording = useCallback(async () => {
     const r = recorderRef.current;
-    if (!r || r.state === "inactive") return;
-    r.stop();
+    const ar = audioRecorderRef.current;
+    if ((!r || r.state === "inactive") && (!ar || ar.state === "inactive")) return;
+
+    if (ar && ar.state !== "inactive") ar.stop();
+    if (r && r.state !== "inactive") r.stop();
+
     recorderRef.current = null;
+    audioRecorderRef.current = null;
     setIsRecording(false);
-    const p = blobPromiseRef.current;
+
+    const pVideo = blobPromiseRef.current;
+    const pAudio = audioBlobPromiseRef.current;
     blobPromiseRef.current = null;
-    if (!p) return;
+    audioBlobPromiseRef.current = null;
+
+    let videoBlob: Blob | null = null;
+    let audioBlob: Blob | null = null;
     try {
-      const blob = await p;
-      setRecordedBlob(blob);
+      if (pVideo) videoBlob = await pVideo;
     } catch {
       setUploadErr("Could not finalize recording.");
     }
+    try {
+      if (pAudio) audioBlob = await pAudio;
+    } catch {
+      /* optional parallel track */
+    }
+
+    for (const t of audioCloneTracksRef.current) {
+      try {
+        t.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    audioCloneTracksRef.current = [];
+
+    if (videoBlob) {
+      setRecordedBlob(videoBlob);
+      const started = recordingStartMsRef.current;
+      const elapsedMs =
+        started > 0 ? Math.min(MAX_SECS * 1000, Math.max(0, Math.floor(Date.now() - started))) : 0;
+      setRecordedDurationMs(elapsedMs > 0 ? elapsedMs : null);
+    }
+    recordingStartMsRef.current = 0;
+    if (audioBlob && audioBlob.size > 0) setRecordedAudioBlob(audioBlob);
+    else setRecordedAudioBlob(null);
   }, []);
 
   useEffect(() => {
@@ -743,6 +859,8 @@ export function RecordScreen({
   async function turnOnCamera() {
     setCameraError(null);
     setRecordedBlob(null);
+    setRecordedAudioBlob(null);
+    setRecordedDurationMs(null);
     try {
       const s = await getCameraStream();
       setStream(s);
@@ -755,6 +873,8 @@ export function RecordScreen({
     stream?.getTracks().forEach((t) => t.stop());
     setStream(null);
     setRecordedBlob(null);
+    setRecordedAudioBlob(null);
+    setRecordedDurationMs(null);
     setLastMediaId(null);
     setPublished(false);
     setUploadErr(null);
@@ -766,6 +886,8 @@ export function RecordScreen({
 
   function discardRecording() {
     setRecordedBlob(null);
+    setRecordedAudioBlob(null);
+    setRecordedDurationMs(null);
     setSecs(0);
     setLastMediaId(null);
     setPublished(false);
@@ -780,7 +902,20 @@ export function RecordScreen({
       setUploadErr("Video recording is not supported in this browser.");
       return;
     }
+    audioRecorderRef.current = null;
+    audioBlobPromiseRef.current = null;
+    for (const t of audioCloneTracksRef.current) {
+      try {
+        t.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    audioCloneTracksRef.current = [];
+
     setRecordedBlob(null);
+    setRecordedAudioBlob(null);
+    setRecordedDurationMs(null);
     setLastMediaId(null);
     setPublished(false);
     setUploadErr(null);
@@ -788,9 +923,19 @@ export function RecordScreen({
     setAnalysisStatus(null);
     setAnalysisErr(null);
     setSecs(0);
+    recordingStartMsRef.current = Date.now();
     const { recorder, blobPromise } = startMediaRecorder(stream);
     recorderRef.current = recorder;
     blobPromiseRef.current = blobPromise;
+
+    if (stream.getAudioTracks().length > 0) {
+      const { stream: audioOnly, clones } = cloneAudioTracksStream(stream);
+      audioCloneTracksRef.current = clones;
+      const { recorder: aRec, blobPromise: aBlob } = startAudioOnlyMediaRecorder(audioOnly);
+      audioRecorderRef.current = aRec;
+      audioBlobPromiseRef.current = aBlob;
+    }
+
     setIsRecording(true);
   }
 
@@ -820,6 +965,11 @@ export function RecordScreen({
       );
       if (projectId) fd.append("project_id", projectId);
       fd.append("media_kind", "video");
+      const durationMs =
+        recordedDurationMs != null
+          ? recordedDurationMs
+          : Math.min(MAX_SECS * 1000, Math.max(0, Math.round(Math.min(secs, MAX_SECS) * 1000)));
+      fd.append("duration_ms", String(durationMs));
 
       const res = await fetch("/api/sentiment/submit-async", { method: "POST", body: fd });
       const j = (await res.json().catch(() => ({}))) as {
@@ -845,12 +995,14 @@ export function RecordScreen({
       setSentimentPollId(sentimentId);
       setAnalysisStatus(typeof j.job_status === "string" ? j.job_status : "queued");
 
-      const dur = Math.round(Math.min(secs, MAX_SECS) || 1);
+      const durSec =
+        durationMs > 0 ? Math.max(1, Math.ceil(durationMs / 1000)) : Math.round(Math.min(secs, MAX_SECS) || 1);
       const { error: patchErr } = await supabase
         .from("media_assets")
         .update({
           quiz_template_slug: quizKeyToSlug(quizKey),
-          duration_seconds: dur,
+          duration_seconds: durSec,
+          duration_ms: durationMs,
           metadata: { source: "record_tab_web", sentiment_async: true },
         })
         .eq("id", mediaId)
@@ -858,6 +1010,28 @@ export function RecordScreen({
 
       if (patchErr) {
         console.warn("uploadClip: metadata patch", patchErr);
+      }
+
+      if (recordedAudioBlob && recordedAudioBlob.size > 0) {
+        const afd = new FormData();
+        afd.append(
+          "file",
+          new File([recordedAudioBlob], "parallel-audio.webm", {
+            type: recordedAudioBlob.type || "audio/webm",
+          }),
+        );
+        afd.append("video_media_asset_id", mediaId);
+        afd.append("duration_ms", String(durationMs));
+        const ares = await fetch("/api/media/parallel-audio", { method: "POST", body: afd });
+        const aj = (await ares.json().catch(() => ({}))) as { error?: string };
+        if (!ares.ok) {
+          setUploadErr(
+            typeof aj.error === "string"
+              ? `Video saved; parallel mic upload failed: ${aj.error}`
+              : "Video saved; parallel mic upload failed.",
+          );
+        }
+        setRecordedAudioBlob(null);
       }
 
       setLibraryVersion((v) => v + 1);
@@ -945,6 +1119,8 @@ export function RecordScreen({
         id: reviewItem.id,
         storage_bucket: reviewItem.storage_bucket,
         storage_path: reviewItem.storage_path,
+        audio_storage_path: reviewItem.audio_storage_path,
+        metadata: reviewItem.metadata,
       });
       if (lastMediaId === reviewItem.id) {
         setLastMediaId(null);

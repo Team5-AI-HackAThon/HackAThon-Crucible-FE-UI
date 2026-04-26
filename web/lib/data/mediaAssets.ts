@@ -14,7 +14,10 @@ export type OwnerMediaRow = {
   kind: string;
   storage_bucket: string;
   storage_path: string;
+  audio_storage_path: string | null;
+  audio_mime_type: string | null;
   duration_seconds: number | null;
+  duration_ms: number | null;
   mime_type: string | null;
   published_at: string | null;
   quiz_template_slug: string | null;
@@ -64,7 +67,10 @@ export async function fetchOwnerMediaList(supabase: SupabaseClient, userId: stri
       kind,
       storage_bucket,
       storage_path,
+      audio_storage_path,
+      audio_mime_type,
       duration_seconds,
+      duration_ms,
       mime_type,
       published_at,
       quiz_template_slug,
@@ -89,7 +95,10 @@ export async function fetchOwnerMediaList(supabase: SupabaseClient, userId: stri
       kind: row.kind as string,
       storage_bucket: row.storage_bucket as string,
       storage_path: row.storage_path as string,
+      audio_storage_path: (row.audio_storage_path as string | null) ?? null,
+      audio_mime_type: (row.audio_mime_type as string | null) ?? null,
       duration_seconds: (row.duration_seconds as number | null) ?? null,
+      duration_ms: (row.duration_ms as number | null) ?? null,
       mime_type: (row.mime_type as string | null) ?? null,
       published_at: (row.published_at as string | null) ?? null,
       quiz_template_slug: (row.quiz_template_slug as string | null) ?? null,
