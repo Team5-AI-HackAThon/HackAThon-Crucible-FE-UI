@@ -16,7 +16,7 @@ export function AppScreenHeader({
       <div className="hdr-greet">Hello {firstName}</div>
       <div className="hdr-top">
         <div className="logo">
-          Cruc<span>ible</span>
+          PE<span>AR</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>{rightSlot}</div>
       </div>

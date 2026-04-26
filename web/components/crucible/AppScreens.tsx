@@ -1,7 +1,7 @@
 "use client";
 
 import type { Role } from "./types";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import {
   attachSignedUrlsToFeedItems,
@@ -21,6 +21,7 @@ import {
   fetchMatchCardsForVc,
   parseInterestAction,
   persistMatchActionFromClient,
+  shuffleArray,
   sortMatchCardsPassesLast,
   type InterestAction,
   type MatchCardRow,
@@ -645,11 +646,14 @@ function MatchPipelineCard({
   onRowUpdated,
   viewerRole,
   onOpenInboxThread,
+  pipelineActionsLocked,
 }: {
   row: MatchCardRow;
   onRowUpdated: (matchId: string, patch: Partial<MatchCardRow>) => void;
   viewerRole: Role;
   onOpenInboxThread?: (conversationId: string) => void;
+  /** True while parent runs Auto-Accept — disables manual Pass/Save/Interested. */
+  pipelineActionsLocked?: boolean;
 }) {
   const letter = row.cardTitle.charAt(0).toUpperCase();
   const scoreClass = row.matchPct >= 85 ? "score-green" : "score-amber";
@@ -693,7 +697,11 @@ function MatchPipelineCard({
   }
 
   return (
-    <div ref={cardRef} className={`match-card${acted ? " match-card--acted" : ""}`}>
+    <div
+      ref={cardRef}
+      className={`match-card${acted ? " match-card--acted" : ""}`}
+      data-match-id={row.matchId}
+    >
       <div className="mc-top">
         <div className="mc-avatar" style={{ background: "linear-gradient(135deg,#e5431a,#c8a44a)" }}>
           {letter}
@@ -795,13 +803,13 @@ function MatchPipelineCard({
           onClick={(e) => e.stopPropagation()}
           role="group"
           aria-label="Match interest"
-          aria-busy={saving}
+          aria-busy={saving || !!pipelineActionsLocked}
         >
           <button
             type="button"
             className="act-btn act-interested match-act-off"
             aria-pressed={false}
-            disabled={saving}
+            disabled={saving || !!pipelineActionsLocked}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -814,7 +822,7 @@ function MatchPipelineCard({
             type="button"
             className="act-btn act-pass match-act-off"
             aria-pressed={false}
-            disabled={saving}
+            disabled={saving || !!pipelineActionsLocked}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -827,7 +835,7 @@ function MatchPipelineCard({
             type="button"
             className="act-btn act-save match-act-off"
             aria-pressed={false}
-            disabled={saving}
+            disabled={saving || !!pipelineActionsLocked}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -860,6 +868,9 @@ export function MatchesScreen({
   const [cards, setCards] = useState<MatchCardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [autoAcceptBusy, setAutoAcceptBusy] = useState(false);
+  const autoAcceptAbortRef = useRef(false);
+  const autoAcceptBusyRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -892,6 +903,57 @@ export function MatchesScreen({
 
   const matchCardsDisplay = useMemo(() => sortMatchCardsPassesLast(cards), [cards]);
 
+  const pendingInterestCount = useMemo(
+    () => matchCardsDisplay.filter((r) => parseInterestAction(r.lastAction) === null).length,
+    [matchCardsDisplay],
+  );
+
+  const runAutoAccept = useCallback(() => {
+    if (autoAcceptBusyRef.current) return;
+    const pending = sortMatchCardsPassesLast([...cards]).filter(
+      (r) => parseInterestAction(r.lastAction) === null,
+    );
+    const targets = shuffleArray(pending);
+    if (targets.length === 0) return;
+    autoAcceptAbortRef.current = false;
+    autoAcceptBusyRef.current = true;
+    setAutoAcceptBusy(true);
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    void (async () => {
+      try {
+        for (const row of targets) {
+          if (autoAcceptAbortRef.current) break;
+          const cardEl = document.querySelector(
+            `[data-match-id="${row.matchId}"]`,
+          ) as HTMLElement | null;
+          cardEl?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+          await sleep(380 + Math.random() * 520);
+          if (autoAcceptAbortRef.current) break;
+          const mid = row.matchId;
+          const previous = row.lastAction;
+          setCards((prev) => prev.map((x) => (x.matchId === mid ? { ...x, lastAction: "interested" } : x)));
+          try {
+            const confirmed = await persistMatchActionFromClient(mid, "interested");
+            setCards((prev) => prev.map((x) => (x.matchId === mid ? { ...x, lastAction: confirmed } : x)));
+          } catch {
+            setCards((prev) => prev.map((x) => (x.matchId === mid ? { ...x, lastAction: previous } : x)));
+          }
+          await sleep(200 + Math.random() * 280);
+        }
+      } finally {
+        autoAcceptBusyRef.current = false;
+        setAutoAcceptBusy(false);
+      }
+    })();
+  }, [cards]);
+
+  useEffect(() => {
+    autoAcceptAbortRef.current = false;
+    return () => {
+      autoAcceptAbortRef.current = true;
+    };
+  }, []);
+
   const heroSub =
     viewerRole === "vc" ? "Investor · projects aligned to you" : "Founder · VC interest on your startups";
 
@@ -915,6 +977,44 @@ export function MatchesScreen({
             <br />
             <em>{heroSub}</em>
           </div>
+          {!loading ? (
+            <div className="dash-hero-auto">
+              <div className="dash-hero-auto-actions">
+                <button
+                  type="button"
+                  className="act-btn act-interested dash-hero-autorun-run"
+                  disabled={autoAcceptBusy || pendingInterestCount === 0}
+                  aria-busy={autoAcceptBusy}
+                  aria-label={
+                    pendingInterestCount === 0
+                      ? "Auto-Accept: no open matches"
+                      : `Auto-Accept ${pendingInterestCount} open match${pendingInterestCount === 1 ? "" : "es"}`
+                  }
+                  onClick={() => runAutoAccept()}
+                >
+                  {autoAcceptBusy ? "Accepting…" : "Auto-Accept"}
+                </button>
+                {autoAcceptBusy ? (
+                  <button
+                    type="button"
+                    className="act-btn dash-hero-autorun-stop"
+                    onClick={() => {
+                      autoAcceptAbortRef.current = true;
+                    }}
+                  >
+                    Stop
+                  </button>
+                ) : null}
+              </div>
+              <span className="dash-hero-auto-hint">
+                {autoAcceptBusy
+                  ? "Working through matches…"
+                  : pendingInterestCount === 0
+                    ? "No open matches — mark cards as Pass / Save / Interested first, or load seed data."
+                    : `${pendingInterestCount} open · click to mark Interested in random order`}
+              </span>
+            </div>
+          ) : null}
           <div className="dash-metric-grid">
             <div className="dmg-item">
               <div className="dmg-num" style={{ color: "var(--ember)" }}>
@@ -975,6 +1075,7 @@ export function MatchesScreen({
             row={row}
             viewerRole={viewerRole}
             onOpenInboxThread={onOpenInboxThread}
+            pipelineActionsLocked={autoAcceptBusy}
             onRowUpdated={(matchId, patch) =>
               setCards((prev) => prev.map((r) => (r.matchId === matchId ? { ...r, ...patch } : r)))
             }

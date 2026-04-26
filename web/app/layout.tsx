@@ -22,7 +22,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Crucible — Pre-seed & seed matching",
+  title: "PEAR — Pre-seed & seed matching",
   description: "Behavioral matching for founders and investors",
 };
 

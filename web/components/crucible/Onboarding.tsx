@@ -42,7 +42,7 @@ export function RoleSelectScreen({
         <div className="ob-wrap">
           <div className="ob-flame">🔥</div>
           <div className="ob-logo">
-            Cruc<span>ible</span>
+            PE<span>AR</span>
           </div>
           <div className="ob-sub">{"// Pre-seed & seed · behavioral matching"}</div>
           {envMissing && (
@@ -276,7 +276,7 @@ export function FounderOnboarding({ userId, onSkip, onComplete, variant = "onboa
       <div className="ob-step-hdr">
         <div>
           <div className="ob-step-logo">
-            Cruc<span>ible</span>
+            PE<span>AR</span>
           </div>
           {variant === "addProject" && (
             <div
@@ -476,7 +476,7 @@ export function InvestorOnboarding({ userId, onSkip, onComplete }: InvestorProps
     <div className="screen active" id="s-ob-investor">
       <div className="ob-step-hdr">
         <div className="ob-step-logo">
-          Cruc<span>ible</span>
+          PE<span>AR</span>
         </div>
         <div className="ob-skip" onClick={onSkip} role="button">
           Skip for now

@@ -10,14 +10,44 @@ export function parseInterestAction(v: string | null): InterestAction | null {
   return null;
 }
 
-/** Pass rows last (compact at bottom); otherwise higher match % first. */
+/** Stable pseudo-random tie-break from id (FNV-1a-ish) — not score-driven. */
+function hashMatchIdForOrder(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/**
+ * Order cards for review: **open** (no `last_action` yet) first, then Save, Interested, Pass last.
+ * Open rows use a stable pseudo-random order by `matchId` (not match %). Other bands: higher % first.
+ */
 export function sortMatchCardsPassesLast(rows: MatchCardRow[]): MatchCardRow[] {
+  const band = (lastAction: string | null): number => {
+    const a = parseInterestAction(lastAction);
+    if (a === null) return 0;
+    if (a === "save") return 1;
+    if (a === "interested") return 2;
+    return 3;
+  };
   return [...rows].sort((a, b) => {
-    const aPass = parseInterestAction(a.lastAction) === "pass" ? 1 : 0;
-    const bPass = parseInterestAction(b.lastAction) === "pass" ? 1 : 0;
-    if (aPass !== bPass) return aPass - bPass;
+    const ba = band(a.lastAction);
+    const bb = band(b.lastAction);
+    if (ba !== bb) return ba - bb;
+    if (ba === 0) return hashMatchIdForOrder(a.matchId) - hashMatchIdForOrder(b.matchId);
     return b.matchPct - a.matchPct;
   });
+}
+
+/** Fisher–Yates shuffle (returns a new array). Use e.g. before Auto-Accept so order is not score-driven. */
+export function shuffleArray<T>(items: readonly T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = out[i];
+    out[i] = out[j]!;
+    out[j] = t!;
+  }
+  return out;
 }
 
 /** One row for the Matches tab (VC: deals aligned to them; founder: VCs matched to their startups). */
